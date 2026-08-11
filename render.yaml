@@ -1,0 +1,16 @@
+# Render.com blueprint — in Render: "New +" → "Blueprint" → choose this repo.
+# Render reads this file and sets everything up by itself.
+services:
+  - type: web
+    name: telegram-popup
+    runtime: go
+    plan: free
+    buildCommand: go build -trimpath -ldflags "-s -w" -o app . && cp dist/config.json .
+    startCommand: ./app
+    envVars:
+      - key: TGPOPUP_KEY
+        generateValue: true # Render invents a strong access key — copy it from the Environment tab
+      - key: TGPOPUP_CHANNELS
+        value: "elisha_yered,hakolhayehudi,realelchangr,ayeletlash,SamariaUpdates,Moshepargod,tzviye,mashekoreIL,regavim,nilchamim,hargavim"
+      - key: TZ
+        value: "Asia/Jerusalem"

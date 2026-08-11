@@ -1,0 +1,15 @@
+# Runtime files the app creates — never belong in the repo
+app.log
+state.json
+telegram.session
+popup.ps1
+tmp/
+cache/
+history/
+*.old
+*.new
+
+# Local build outputs
+/tgpopup
+/app
+*.test
