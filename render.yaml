@@ -5,7 +5,7 @@ services:
     name: telegram-popup
     runtime: go
     plan: free
-    buildCommand: go build -trimpath -ldflags "-s -w" -o app . && cp dist/config.json .
+    buildCommand: go build -trimpath -ldflags "-s -w" -o app . && (cp dist/config.json . || true)
     startCommand: ./app
     envVars:
       - key: TGPOPUP_KEY
