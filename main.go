@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "5.6"
+const version = "6.4"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -36,15 +36,64 @@ func logf(format string, args ...any) {
 type State struct {
 	LastID  int            `json:"last_id,omitempty"`
 	LastIDs map[string]int `json:"last_ids"`
+	// Channel display identities (name + avatar), remembered across restarts
+	// so the sidebar shows real faces IMMEDIATELY on startup instead of
+	// waiting for the (deliberately slow, throttle-safe) first scan.
+	Infos map[string]ChannelInfo `json:"infos,omitempty"`
 }
 
 // runtimeSettings are the toggles the page can flip while the app runs; the
 // scanner goroutine reads them and the HTTP goroutines write them.
 type runtimeSettings struct {
-	mu     sync.Mutex
-	popups bool
-	sound  bool
-	theme  string
+	mu      sync.Mutex
+	popups  bool
+	sound   bool
+	theme   string
+	include []string // popup keyword filters, editable from the page
+	exclude []string
+	skipEmpty bool
+}
+
+func (r *runtimeSettings) getKeywords() (inc, exc []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string{}, r.include...), append([]string{}, r.exclude...)
+}
+
+func (r *runtimeSettings) setKeywords(inc, exc []string) {
+	r.mu.Lock()
+	r.include = append([]string{}, inc...)
+	r.exclude = append([]string{}, exc...)
+	r.mu.Unlock()
+}
+
+// wanted applies the keyword filters to a message — same semantics as
+// Config.Wanted, but reading the LIVE keyword lists the page can edit.
+func (r *runtimeSettings) wanted(text string, hasMedia bool) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.skipEmpty && strings.TrimSpace(text) == "" && !hasMedia {
+		return false
+	}
+	lower := strings.ToLower(text)
+	for _, kw := range r.exclude {
+		kw = strings.ToLower(strings.TrimSpace(kw))
+		if kw != "" && strings.Contains(lower, kw) {
+			return false
+		}
+	}
+	active := false
+	for _, kw := range r.include {
+		kw = strings.ToLower(strings.TrimSpace(kw))
+		if kw == "" {
+			continue
+		}
+		active = true
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return !active
 }
 
 func (r *runtimeSettings) getTheme() string {
@@ -194,7 +243,13 @@ func main() {
 
 	channels := &channelSet{names: append([]string{}, cfg.Channels...)}
 	muted := &channelSet{names: append([]string{}, cfg.MutedChannels...)}
-	settings := &runtimeSettings{popups: cfg.Popups, sound: cfg.Sound, theme: cfg.Theme}
+	pinned := &channelSet{names: append([]string{}, cfg.PinnedChannels...)}
+	settings := &runtimeSettings{
+		popups: cfg.Popups, sound: cfg.Sound, theme: cfg.Theme,
+		include: append([]string{}, cfg.IncludeKeywords...),
+		exclude: append([]string{}, cfg.ExcludeKeywords...),
+		skipEmpty: cfg.SkipEmptyText,
+	}
 
 	// Optional Telegram account client — enables large "too big" videos.
 	tg := NewTGClient(cfg.TelegramAppID, cfg.TelegramAppHash,
@@ -217,9 +272,13 @@ func main() {
 	// The effective polling period is derived from the channel count, not taken
 	// blindly from the config: eleven channels at the configured 15s meant
 	// ~2,600 requests an hour and Telegram simply stopped answering.
-	pollEvery := pollInterval(cfg.PollSeconds, len(cfg.Channels))
-	logf("%s", describeRate(len(cfg.Channels), pollEvery))
-	if pollEvery > time.Duration(cfg.PollSeconds)*time.Second {
+	// Recomputed on every cycle, so adding channels from the page adjusts the
+	// pace immediately — no restart needed.
+	currentInterval := func() time.Duration {
+		return pollInterval(cfg.PollSeconds, len(channels.list()))
+	}
+	logf("%s", describeRate(len(cfg.Channels), currentInterval()))
+	if currentInterval() > time.Duration(cfg.PollSeconds)*time.Second {
 		logf("(הקצב הותאם אוטומטית למספר הערוצים כדי שטלגרם לא תחסום)")
 	}
 	logf("חלונית נשארת %d שניות", cfg.PopupSeconds)
@@ -243,8 +302,10 @@ func main() {
 		defer persistMu.Unlock()
 		cfg.Channels = channels.list()
 		cfg.MutedChannels = muted.list()
+		cfg.PinnedChannels = pinned.list()
 		cfg.Popups, cfg.Sound = settings.get()
 		cfg.Theme = settings.getTheme()
+		cfg.IncludeKeywords, cfg.ExcludeKeywords = settings.getKeywords()
 		if data, mErr := json.MarshalIndent(cfg, "", "  "); mErr == nil {
 			_ = os.WriteFile(cfgPath, data, 0o644)
 		}
@@ -321,6 +382,23 @@ func main() {
 			logLine("השתקת @%s: %v", name, m)
 			return nil
 		}
+		feed.IsPinned = pinned.has
+		feed.SetPinned = func(name string, p bool) error {
+			if p {
+				pinned.add(name)
+			} else {
+				pinned.remove(name)
+			}
+			persist()
+			logLine("נעיצת @%s: %v", name, p)
+			return nil
+		}
+		feed.GetKeywords = settings.getKeywords
+		feed.SetKeywords = func(inc, exc []string) {
+			settings.setKeywords(inc, exc)
+			persist()
+			logLine("מילות מפתח עודכנו מהדף: %d לכלול, %d להחריג", len(inc), len(exc))
+		}
 		feed.GetSettings = settings.get
 		feed.GetTheme = settings.getTheme
 		feed.SetTheme = func(t string) { settings.setTheme(t); persist() }
@@ -391,12 +469,16 @@ func main() {
 			}
 		}
 	}
+	// Remembered identities: names and avatars appear the moment the page
+	// opens, not 20 slow-paced seconds later.
+	if feed != nil {
+		for ch, info := range state.Infos {
+			feed.SetChannelInfo(ch, info)
+		}
+	}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	ticker := time.NewTicker(pollEvery)
-	defer ticker.Stop()
 
 	// One background worker fills in history, slowly, without competing with
 	// live scanning for Telegram's patience.
@@ -456,8 +538,20 @@ func main() {
 			}
 		}
 		sort.Slice(fresh, func(i, j int) bool { return fresh[i].ID < fresh[j].ID })
+		// Persist identity only on meaningful change (name, or photo presence)
+		// — Telegram rotates photo URLs every fetch, and rewriting state.json
+		// twelve times a sweep for cosmetic URL churn helps no one. The
+		// freshest URL still lands in memory for the avatar cache to use.
+		prev := state.Infos[ch]
+		infoChanged := info.Name != "" &&
+			(prev.Name != info.Name || (prev.Photo == "") != (info.Photo == ""))
+		if info.Name != "" {
+			state.Infos[ch] = info
+		}
 		if len(fresh) > 0 {
 			state.LastIDs[ch] = fresh[len(fresh)-1].ID
+		}
+		if len(fresh) > 0 || infoChanged {
 			saveState(statePath, state)
 		}
 		firstSeed := !seeded[ch]
@@ -504,7 +598,9 @@ func main() {
 			return
 		}
 		for _, m := range fresh {
-			if !cfg.Wanted(m.Text, m.HasMedia()) {
+			// Live keyword filters (editable from the page), not the boot-time
+			// config snapshot.
+			if !settings.wanted(m.Text, m.HasMedia()) {
 				continue
 			}
 			scanMu.Lock()
@@ -572,8 +668,10 @@ func main() {
 
 	scan()
 	for {
+		// time.After (not a fixed Ticker) so the interval tracks the live
+		// channel count — add a channel from the page, the pace adapts now.
 		select {
-		case <-ticker.C:
+		case <-time.After(currentInterval()):
 			scan()
 		case <-kick:
 			scan()
@@ -804,6 +902,9 @@ func loadState(path string) State {
 	}
 	if s.LastIDs == nil {
 		s.LastIDs = map[string]int{}
+	}
+	if s.Infos == nil {
+		s.Infos = map[string]ChannelInfo{}
 	}
 	// Pre-2.0 state had a single last_id with no channel attached; it is
 	// dropped rather than guessed — worst case is one silent re-sync.

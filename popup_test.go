@@ -74,6 +74,8 @@ func TestBuildPopupHTMLPhotoOnly(t *testing.T) {
 }
 
 func TestBuildPopupHTMLInlineVideo(t *testing.T) {
+	// Since 6.1.1 a video post in a popup is a STILL preview — never a
+	// playing element (the IE engine leaked content audio; see mute_test.go).
 	msg := Message{
 		ID:         11,
 		Text:       "צפו!",
@@ -84,14 +86,14 @@ func TestBuildPopupHTMLInlineVideo(t *testing.T) {
 	}
 	page := BuildPopupHTML("@mychan", msg, "13:00", 15)
 
-	if !strings.Contains(page, `<video src="https://cdn4.telesco.pe/file/clip.mp4"`) {
-		t.Fatal("inline video tag missing")
+	if strings.Contains(page, "<video") {
+		t.Fatal("popup must NOT embed a playing video — this is the speaking-popups bug")
 	}
-	if !strings.Contains(page, `poster="https://cdn4.telesco.pe/file/thumb.jpg"`) {
-		t.Fatal("poster missing")
+	if !strings.Contains(page, `img src="https://cdn4.telesco.pe/file/thumb.jpg"`) {
+		t.Fatal("preview frame missing")
 	}
-	if !strings.Contains(page, "autoplay muted loop") {
-		t.Fatal("video must autoplay muted")
+	if !strings.Contains(page, "playbtn") {
+		t.Fatal("play badge missing — the card should still read as a video")
 	}
 	if !strings.Contains(page, `class="durbadge">0:31<`) {
 		t.Fatal("duration badge missing")

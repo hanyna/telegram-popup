@@ -42,6 +42,12 @@ type Feed struct {
 	infoMu sync.Mutex
 	infos  map[string]ChannelInfo // channel username -> display identity
 
+	// Avatar bytes, cached server-side. Telegram's photo URLs carry rotating
+	// tokens and expire like video URLs do — serving the image ourselves
+	// gives the page one stable URL per channel that never breaks.
+	avatarMu    sync.Mutex
+	avatarCache map[string]avatarEntry
+
 	// Wired in by main so the feed stays free of scanning/config logic.
 	FetchOlder    func(channel string, beforeID int) ([]Message, error)
 	ListChannels  func() []string
@@ -51,6 +57,10 @@ type Feed struct {
 	SetSettings   func(popups, sound *bool) (bool, bool)
 	IsMuted       func(name string) bool
 	SetMuted      func(name string, muted bool) error
+	IsPinned      func(name string) bool
+	SetPinned     func(name string, pinned bool) error
+	GetKeywords   func() (include, exclude []string)
+	SetKeywords   func(include, exclude []string)
 	Refresh       func() // trigger an immediate scan of all channels
 	ResolveVideo  func(channel string, id int) (string, error)
 	// BigVideo downloads a large video via an authenticated Telegram account
@@ -74,14 +84,32 @@ type Feed struct {
 	AccessKey string
 }
 
-// SetChannelInfo records a channel's display name and photo.
+// SetChannelInfo records a channel's display name and photo. New or changed
+// identities are pushed to every open tab immediately — the sidebar's avatars
+// must not wait for a page reload (the paced scanner delivers infos slowly,
+// well after the page has booted).
 func (f *Feed) SetChannelInfo(name string, info ChannelInfo) {
 	if info.Name == "" && info.Photo == "" {
 		return
 	}
 	f.infoMu.Lock()
+	old, had := f.infos[name]
 	f.infos[name] = info
 	f.infoMu.Unlock()
+	// Telegram rotates photo URLs on every fetch, so comparing raw URLs would
+	// re-broadcast (and re-render the sidebar) every sweep. Only a real
+	// change matters: a new display name, or an avatar appearing at all.
+	changed := !had || old.Name != info.Name || (old.Photo == "") != (info.Photo == "")
+	if changed {
+		photo := ""
+		if info.Photo != "" {
+			photo = "/api/avatar?channel=" + name
+		}
+		f.broadcast(map[string]any{
+			"type": "chaninfo", "channel": name,
+			"title": info.Name, "photo": photo,
+		})
+	}
 }
 
 // GetChannelInfo returns the recorded identity, if any.
@@ -94,17 +122,31 @@ func (f *Feed) GetChannelInfo(name string) (ChannelInfo, bool) {
 
 const feedMaxItems = 800
 
+type avatarEntry struct {
+	data      []byte
+	ctype     string
+	fetchedAt time.Time
+}
+
 func NewFeed() *Feed {
 	return &Feed{
-		keys:       make(map[string]bool),
-		clients:    make(map[chan string]struct{}),
-		infos:      make(map[string]ChannelInfo),
-		videoCache: make(map[string]string),
-		pending:    make(map[string]time.Time),
+		keys:        make(map[string]bool),
+		clients:     make(map[chan string]struct{}),
+		infos:       make(map[string]ChannelInfo),
+		videoCache:  make(map[string]string),
+		pending:     make(map[string]time.Time),
+		avatarCache: make(map[string]avatarEntry),
 	}
 }
 
 func itemKey(m Message) string { return m.Channel + "_" + strconv.Itoa(m.ID) }
+
+func nonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
 
 func toItem(m Message) FeedItem {
 	ts := int64(0)
@@ -112,17 +154,25 @@ func toItem(m Message) FeedItem {
 		ts = t.Unix()
 	}
 	prev := strings.TrimSpace(strings.ReplaceAll(m.Text, "\n", " "))
-	if prev == "" {
-		switch {
-		case m.Video != "" || m.VideoThumb != "":
-			prev = "🎬 סרטון"
-		case m.Photo != "":
-			prev = "📷 תמונה"
-		}
-	} else if m.Video != "" || m.VideoThumb != "" {
-		prev = "🎬 " + prev
-	} else if m.Photo != "" {
-		prev = "📷 " + prev
+	icon := ""
+	switch {
+	case len(m.Photos) > 1:
+		icon, prev = "📷", nonEmpty(prev, "אלבום · "+strconv.Itoa(len(m.Photos))+" תמונות")
+	case m.Video != "" || m.VideoThumb != "" || m.Round != "":
+		icon, prev = "🎬", nonEmpty(prev, "סרטון")
+	case m.Voice != "":
+		icon, prev = "🎤", nonEmpty(prev, "הודעה קולית")
+	case m.Sticker != "":
+		icon, prev = "😊", nonEmpty(prev, "סטיקר")
+	case m.Poll != "":
+		icon, prev = "📊", nonEmpty(prev, m.Poll)
+	case m.Doc != "":
+		icon, prev = "📎", nonEmpty(prev, m.Doc)
+	case m.Photo != "":
+		icon, prev = "📷", nonEmpty(prev, "תמונה")
+	}
+	if icon != "" {
+		prev = icon + " " + prev
 	}
 	if r := []rune(prev); len(r) > 80 {
 		prev = string(r[:80]) + "…"
@@ -236,12 +286,16 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/channels", f.handleChannels)
 	mux.HandleFunc("/api/settings", f.handleSettings)
 	mux.HandleFunc("/api/mute", f.handleMute)
+	mux.HandleFunc("/api/pin", f.handlePin)
+	mux.HandleFunc("/api/keywords", f.handleKeywords)
 	mux.HandleFunc("/api/refresh", f.handleRefresh)
 	mux.HandleFunc("/api/video", f.handleVideo)
 	mux.HandleFunc("/api/media", f.handleMedia)
 	mux.HandleFunc("/api/search", f.handleSearch)
 	mux.HandleFunc("/api/autostart", f.handleAutostart)
 	mux.HandleFunc("/api/status", f.handleStatus)
+	mux.HandleFunc("/api/goto", f.handleGoto)
+	mux.HandleFunc("/api/avatar", f.handleAvatar)
 
 	bind := f.BindAddr
 	if bind == "" {
@@ -321,10 +375,11 @@ func (f *Feed) handleChannels(w http.ResponseWriter, r *http.Request) {
 			names = f.ListChannels()
 		}
 		type entry struct {
-			Name  string `json:"name"`
-			Title string `json:"title"`
-			Photo string `json:"photo"`
-			Muted bool   `json:"muted"`
+			Name   string `json:"name"`
+			Title  string `json:"title"`
+			Photo  string `json:"photo"`
+			Muted  bool   `json:"muted"`
+			Pinned bool   `json:"pinned"`
 		}
 		entries := make([]entry, 0, len(names))
 		for _, n := range names {
@@ -333,10 +388,17 @@ func (f *Feed) handleChannels(w http.ResponseWriter, r *http.Request) {
 				if info.Name != "" {
 					e.Title = info.Name
 				}
-				e.Photo = info.Photo
+				if info.Photo != "" {
+					// One stable, never-expiring address per channel — the
+					// app serves the image itself (Telegram's URLs rot).
+					e.Photo = "/api/avatar?channel=" + n
+				}
 			}
 			if f.IsMuted != nil {
 				e.Muted = f.IsMuted(n)
+			}
+			if f.IsPinned != nil {
+				e.Pinned = f.IsPinned(n)
 			}
 			entries = append(entries, e)
 		}
@@ -500,14 +562,15 @@ func (f *Feed) handleStatus(w http.ResponseWriter, r *http.Request) {
 	itemCount := len(f.items)
 	f.mu.Unlock()
 
+	blocked := tgLimiter.AnyBlocked(names)
 	banner := ""
 	switch {
 	case len(names) == 0:
 		banner = "לא מוגדרים ערוצים. הוסף ערוץ בכפתור למטה."
-	case tgLimiter.AnyBlocked() && okCount == 0:
+	case blocked && okCount == 0:
 		banner = "טלגרם מגבילה זמנית את הבקשות מהמחשב הזה. התוכנה ממתינה ותנסה שוב לבד — " +
 			"בדרך כלל זה חוזר לעצמו תוך כמה דקות. אין צורך לעשות כלום."
-	case tgLimiter.AnyBlocked():
+	case blocked:
 		banner = "חלק מהערוצים מוגבלים זמנית על ידי טלגרם. הם יתמלאו לבד בהמשך."
 	case okCount == 0 && itemCount == 0:
 		banner = "עדיין טוען ערוצים…"
@@ -519,8 +582,95 @@ func (f *Feed) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"total":    len(names),
 		"items":    itemCount,
 		"banner":   banner,
-		"blocked":  tgLimiter.AnyBlocked(),
+		"blocked":  blocked,
 	})
+}
+
+// handleAvatar serves a channel's profile picture from the app's own cache.
+// Telegram's CDN URLs rotate and expire; this endpoint is the page's one
+// stable address per channel. Bytes are cached for a day, then refreshed
+// against whatever URL the latest scan recorded.
+func (f *Feed) handleAvatar(w http.ResponseWriter, r *http.Request) {
+	channel := normalizeChannel(r.URL.Query().Get("channel"))
+	if channel == "" {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	f.avatarMu.Lock()
+	cached, ok := f.avatarCache[channel]
+	f.avatarMu.Unlock()
+	if ok && time.Since(cached.fetchedAt) < 24*time.Hour {
+		w.Header().Set("Content-Type", cached.ctype)
+		w.Header().Set("Cache-Control", "public, max-age=21600") // browser: 6h
+		_, _ = w.Write(cached.data)
+		return
+	}
+
+	info, has := f.GetChannelInfo(channel)
+	if !has || info.Photo == "" {
+		http.Error(w, "no avatar", http.StatusNotFound)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, info.Photo, nil)
+	if err != nil {
+		http.Error(w, "bad upstream", http.StatusBadGateway)
+		return
+	}
+	req.Header.Set("User-Agent", desktopUA)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		// A stale cached copy beats a broken circle.
+		if ok {
+			w.Header().Set("Content-Type", cached.ctype)
+			_, _ = w.Write(cached.data)
+			return
+		}
+		http.Error(w, "unavailable", http.StatusNotFound)
+		return
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil || len(data) == 0 {
+		http.Error(w, "unavailable", http.StatusNotFound)
+		return
+	}
+	ctype := resp.Header.Get("Content-Type")
+	if ctype == "" {
+		ctype = "image/jpeg"
+	}
+	f.avatarMu.Lock()
+	f.avatarCache[channel] = avatarEntry{data: data, ctype: ctype, fetchedAt: time.Now()}
+	f.avatarMu.Unlock()
+
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Cache-Control", "public, max-age=21600")
+	_, _ = w.Write(data)
+}
+
+// handleGoto is what a popup click calls: every open tab jumps to the given
+// message (selecting its channel, scrolling to it, playing its video in
+// place). The response tells the caller whether any tab was listening — if
+// not, the popup opens a fresh page instead.
+func (f *Feed) handleGoto(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	channel := normalizeChannel(r.URL.Query().Get("channel"))
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil || channel == "" || id < 1 {
+		http.Error(w, `{"error":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	f.mu.Lock()
+	clients := len(f.clients)
+	f.mu.Unlock()
+	if clients > 0 {
+		f.broadcast(map[string]any{"type": "goto", "channel": channel, "id": id})
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"clients": clients})
 }
 
 // handleSearch scans the whole on-disk archive and returns rendered cards.
@@ -758,6 +908,81 @@ func (f *Feed) handleMute(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "channel": name, "muted": body.Muted})
 }
 
+// handlePin stars a channel to the top of the sidebar.
+func (f *Feed) handlePin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if r.Method != http.MethodPost || f.SetPinned == nil {
+		http.Error(w, `{"error":"unsupported"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Channel string `json:"channel"`
+		Pinned  bool   `json:"pinned"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&body); err != nil {
+		http.Error(w, `{"error":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	name := normalizeChannel(body.Channel)
+	if err := f.SetPinned(name, body.Pinned); err != nil {
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "channel": name, "pinned": body.Pinned})
+}
+
+// handleKeywords lets the page read and edit the popup keyword filters that
+// previously lived only in config.json.
+func (f *Feed) handleKeywords(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	switch r.Method {
+	case http.MethodGet:
+		var inc, exc []string
+		if f.GetKeywords != nil {
+			inc, exc = f.GetKeywords()
+		}
+		if inc == nil {
+			inc = []string{}
+		}
+		if exc == nil {
+			exc = []string{}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"include": inc, "exclude": exc})
+	case http.MethodPost:
+		if f.SetKeywords == nil {
+			http.Error(w, `{"error":"unsupported"}`, http.StatusNotImplemented)
+			return
+		}
+		var body struct {
+			Include []string `json:"include"`
+			Exclude []string `json:"exclude"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&body); err != nil {
+			http.Error(w, `{"error":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		f.SetKeywords(cleanKeywords(body.Include), cleanKeywords(body.Exclude))
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	default:
+		http.Error(w, `{"error":"method"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// cleanKeywords trims, drops empties and dedupes, keeping order.
+func cleanKeywords(in []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, k := range in {
+		k = strings.TrimSpace(k)
+		if k == "" || seen[strings.ToLower(k)] {
+			continue
+		}
+		seen[strings.ToLower(k)] = true
+		out = append(out, k)
+	}
+	return out
+}
+
 // handleSettings: GET reads the runtime toggles, POST flips them. Changes
 // persist to config.json through the callbacks.
 func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -868,12 +1093,14 @@ func renderFeedItem(m Message) string {
 
 // feedMediaHTML renders a post's attachment for the chat page (a real
 // browser — unlike the popup, which runs on the legacy engine):
+//   - photo albums become a grid, every photo opens in the lightbox
 //   - a clip without a duration is GIF-like → silent auto-looping preview
-//   - a clip with a duration is a real video → full controls: play/pause,
-//     seeking, and sound
+//   - a clip with a duration is a real video → full controls
+//   - round "video notes" play in a circle, like in Telegram
+//   - voice messages get an audio player with a 🎤 label
+//   - stickers, polls, file attachments and link-preview cards all render
 //   - a long video Telegram serves only as a preview frame → the frame with
-//     a play button; clicking swaps in Telegram's embedded player, which
-//     streams the full video right inside the page
+//     a play button; clicking streams it through the app
 func feedMediaHTML(m Message) string {
 	badge := ""
 	if m.Duration != "" {
@@ -886,29 +1113,114 @@ func feedMediaHTML(m Message) string {
 
 	proxy := ` data-proxy="/api/media?channel=` + html.EscapeString(m.Channel) + `&amp;id=` + strconv.Itoa(m.ID) + `"`
 
+	// User-playable videos stream through the app's own proxy from the very
+	// first byte: the proxy re-resolves Telegram's short-lived URLs on every
+	// request, so a months-old archived post plays exactly like a fresh one —
+	// no expired-token error, no retry dance. preload="none" means NOTHING is
+	// fetched (and nothing can possibly sound) until the user presses play.
+	proxySrc := "/api/media?channel=" + html.EscapeString(m.Channel) + "&amp;id=" + strconv.Itoa(m.ID)
+
+	var b strings.Builder
+
 	switch {
+	case len(m.Photos) > 1:
+		cls := "album"
+		if len(m.Photos) == 2 {
+			cls += " two"
+		}
+		b.WriteString(`<div class="photo"><div class="` + cls + `">`)
+		for _, p := range m.Photos {
+			b.WriteString(`<img src="` + html.EscapeString(p) + `" alt="" loading="lazy">`)
+		}
+		b.WriteString(`</div></div>`)
+
+	case m.Round != "":
+		b.WriteString(`<div class="photo"><div class="roundwrap">` +
+			`<video class="roundvid" src="` + proxySrc + `"` +
+			` controls playsinline preload="none"></video></div></div>`)
+
 	case m.Video != "" && m.Duration == "":
-		return `<div class="photo"><div class="vidwrap">` +
-			`<video src="` + html.EscapeString(m.Video) + `"` + poster + proxy +
-			` autoplay muted loop playsinline></video></div></div>`
+		// GIF-like: silent looping preview — but NOT autoplay-in-markup.
+		// Dozens of history GIFs all decoding at once made the whole page
+		// crawl; the page plays each one only while it is actually on screen
+		// (IntersectionObserver), and preload="none" keeps off-screen ones
+		// from even downloading.
+		b.WriteString(`<div class="photo"><div class="vidwrap">` +
+			`<video class="gifvid" src="` + html.EscapeString(m.Video) + `"` + poster + proxy +
+			` muted loop playsinline preload="none"></video></div></div>`)
 
 	case m.Video != "":
-		return `<div class="photo"><div class="vidwrap">` +
-			`<video src="` + html.EscapeString(m.Video) + `"` + poster + proxy +
-			` controls preload="metadata" playsinline></video>` +
+		b.WriteString(`<div class="photo"><div class="vidwrap">` +
+			`<video src="` + proxySrc + `"` + poster +
+			` controls preload="none" playsinline></video>` +
 			`<span class="durbadge durtop">` + html.EscapeString(m.Duration) + `</span>` +
-			`</div></div>`
+			`</div></div>`)
 
 	case m.VideoThumb != "":
 		embed := html.EscapeString(m.Channel) + "/" + strconv.Itoa(m.ID)
-		return `<div class="photo"><div class="vidwrap embedwrap" data-embed="` + embed + `">` +
+		b.WriteString(`<div class="photo"><div class="vidwrap embedwrap" data-embed="` + embed + `">` +
 			`<img src="` + html.EscapeString(m.VideoThumb) + `" alt="">` +
-			`<div class="playbtn"><span></span></div>` + badge + `</div></div>`
+			`<div class="playbtn"><span></span></div>` + badge + `</div></div>`)
+
+	case m.Sticker != "":
+		b.WriteString(`<div class="stickerbox"><img src="` + html.EscapeString(m.Sticker) + `" alt="" loading="lazy"></div>`)
 
 	case m.Photo != "":
-		return `<div class="photo"><img src="` + html.EscapeString(m.Photo) + `" alt=""></div>`
+		b.WriteString(`<div class="photo"><img src="` + html.EscapeString(m.Photo) + `" alt="" loading="lazy" decoding="async"></div>`)
 	}
-	return ""
+
+	if m.Voice != "" {
+		dur := ""
+		if m.VoiceDur != "" {
+			dur = `<span class="voicedur">` + html.EscapeString(m.VoiceDur) + `</span>`
+		}
+		b.WriteString(`<div class="voicebox"><span class="voiceico">🎤</span>` +
+			`<audio controls preload="none" src="` + html.EscapeString(m.Voice) + `"></audio>` + dur + `</div>`)
+	}
+
+	if m.Poll != "" {
+		b.WriteString(`<div class="pollbox"><div class="pollq">📊 ` + html.EscapeString(m.Poll) + `</div>`)
+		for _, opt := range m.PollOpts {
+			pct := html.EscapeString(opt.Pct)
+			width := strings.TrimSuffix(pct, "%")
+			b.WriteString(`<div class="pollopt">` +
+				`<div class="pollmeta"><span>` + html.EscapeString(opt.Text) + `</span><b>` + pct + `</b></div>` +
+				`<div class="pollbar"><i style="width:` + width + `%"></i></div></div>`)
+		}
+		b.WriteString(`</div>`)
+	}
+
+	if m.Doc != "" {
+		size := ""
+		if m.DocSize != "" {
+			size = `<div class="docsize">` + html.EscapeString(m.DocSize) + `</div>`
+		}
+		b.WriteString(`<div class="docbox"><span class="docico">📎</span><div class="docmeta">` +
+			`<div class="docname">` + html.EscapeString(m.Doc) + `</div>` + size + `</div></div>`)
+	}
+
+	if m.LinkTitle != "" {
+		inner := ""
+		if m.LinkImage != "" {
+			inner += `<img src="` + html.EscapeString(m.LinkImage) + `" alt="" loading="lazy">`
+		}
+		inner += `<div class="linkmeta"><div class="linktitle">` + html.EscapeString(m.LinkTitle) + `</div>`
+		if m.LinkDesc != "" {
+			desc := m.LinkDesc
+			if r := []rune(desc); len(r) > 160 {
+				desc = string(r[:160]) + "…"
+			}
+			inner += `<div class="linkdesc">` + html.EscapeString(desc) + `</div>`
+		}
+		inner += `</div>`
+		if m.LinkHref != "" {
+			b.WriteString(`<a class="linkcard" href="` + html.EscapeString(m.LinkHref) + `" target="_blank" rel="noopener">` + inner + `</a>`)
+		} else {
+			b.WriteString(`<div class="linkcard">` + inner + `</div>`)
+		}
+	}
+
+	return b.String()
 }
 
 func feedStamp(iso string) string {

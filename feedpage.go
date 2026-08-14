@@ -26,13 +26,13 @@ const feedPage = `<!DOCTYPE html>
     --markbg:rgba(55,174,226,0.35);
   }
   body.light {
-    --bg:#eef1f7; --bg2:#e6eaf2;
+    --bg:#dfe6f0; --bg2:#d5dde9;
     --panel:#ffffff; --panel2:#f7f9fd;
-    --bubble:#ffffff; --bubble2:#f4f7fc;
-    --line:rgba(20,30,60,0.10);
-    --fg:#1c2333; --muted:#5d6680; --dim:#8a92a8;
-    --accent:#1e88d2; --accent2:#149a6e;
-    --headbg:rgba(255,255,255,0.85);
+    --bubble:#ffffff; --bubble2:#fbfdff;
+    --line:rgba(20,30,60,0.14);
+    --fg:#1c2333; --muted:#525b76; --dim:#7d869d;
+    --accent:#1e88d2; --accent2:#0e8a62;
+    --headbg:rgba(255,255,255,0.88);
     --markbg:rgba(30,136,210,0.25);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -313,6 +313,10 @@ const feedPage = `<!DOCTYPE html>
     max-width:86%;
     box-shadow:0 2px 10px rgba(0,0,0,0.18);
     animation:rise 0.22s ease-out;
+    /* Off-screen bubbles skip layout & paint entirely — with hundreds of
+       messages loaded this is the difference between smooth and sluggish. */
+    content-visibility:auto;
+    contain-intrinsic-size:auto 140px;
   }
   .msg.fresh { box-shadow:0 0 0 1px rgba(55,174,226,0.5), 0 6px 24px rgba(55,174,226,0.15); }
   .msg.hidden { display:none; }
@@ -448,6 +452,171 @@ const feedPage = `<!DOCTYPE html>
   .modal .ok:disabled { opacity:0.55; cursor:default; }
   .modal .cancel { background:transparent; color:var(--muted); }
 
+  /* ===== loading skeleton ================================================ */
+  .skel {
+    border-radius:16px 16px 16px 5px; border:1px solid var(--line);
+    background:linear-gradient(160deg,var(--bubble2),var(--bubble));
+    padding:14px 15px; margin-bottom:10px; max-width:86%;
+  }
+  .skel .l {
+    height:11px; border-radius:99px; margin-bottom:9px;
+    background:linear-gradient(90deg,rgba(127,140,170,0.12) 25%,rgba(127,140,170,0.28) 50%,rgba(127,140,170,0.12) 75%);
+    background-size:200% 100%;
+    animation:shimmer 1.3s linear infinite;
+  }
+  .skel .l:last-child { margin-bottom:0; }
+  @keyframes shimmer { to { background-position:-200% 0; } }
+
+  /* ===== lightbox album navigation ======================================= */
+  .lbnav {
+    position:fixed; top:50%; transform:translateY(-50%);
+    width:52px; height:52px; border-radius:50%;
+    background:rgba(18,23,42,0.8); border:1px solid rgba(255,255,255,0.25);
+    color:#fff; font-size:26px; line-height:50px; text-align:center;
+    cursor:pointer; user-select:none; z-index:51;
+    transition:background 0.12s;
+  }
+  .lbnav:hover { background:rgba(30,136,210,0.8); }
+  #lbprev { right:26px; }
+  #lbnext { left:26px; }
+  #lbcount {
+    position:fixed; top:22px; left:50%; transform:translateX(-50%);
+    color:#fff; font-size:13px; z-index:51;
+    background:rgba(18,23,42,0.75); border-radius:99px; padding:5px 16px;
+  }
+
+  /* ===== rich media ====================================================== */
+  .album {
+    display:grid; grid-template-columns:1fr 1fr; gap:4px;
+    border-radius:11px; overflow:hidden; border:1px solid var(--line);
+  }
+  .album img {
+    width:100%; height:100%; object-fit:cover; display:block;
+    aspect-ratio:1/1; border:none; border-radius:0; cursor:zoom-in;
+  }
+  .album.two img { aspect-ratio:4/5; }
+  .album img:first-child:nth-last-child(odd):not(:only-child) { grid-column:span 2; aspect-ratio:2/1; }
+
+  .roundwrap { display:flex; justify-content:center; padding:6px 0; }
+  .roundvid {
+    width:260px; height:260px; max-width:70vw; max-height:70vw;
+    border-radius:50%; object-fit:cover;
+    border:3px solid var(--accent); background:#0d1120;
+    box-shadow:0 8px 28px rgba(30,136,210,0.25);
+  }
+
+  .voicebox {
+    display:flex; align-items:center; gap:10px;
+    background:rgba(55,174,226,0.08); border:1px solid rgba(55,174,226,0.22);
+    border-radius:14px; padding:8px 12px; margin:4px 0 8px;
+  }
+  .voiceico { font-size:18px; flex:none; }
+  .voicebox audio { flex:1; height:36px; min-width:0; }
+  .voicedur { font-size:11.5px; color:var(--muted); flex:none; direction:ltr; }
+
+  .stickerbox { padding:2px 0 6px; }
+  .stickerbox img { max-width:170px; max-height:170px; display:block; }
+
+  .pollbox {
+    background:rgba(55,174,226,0.06); border:1px solid var(--line);
+    border-radius:14px; padding:12px 14px; margin:4px 0 8px;
+  }
+  .pollq { font-weight:700; font-size:13.5px; margin-bottom:10px; }
+  .pollopt { margin-bottom:9px; }
+  .pollopt:last-child { margin-bottom:2px; }
+  .pollmeta {
+    display:flex; justify-content:space-between; gap:10px;
+    font-size:12.5px; margin-bottom:4px;
+  }
+  .pollmeta b { color:var(--accent); direction:ltr; }
+  .pollbar {
+    height:6px; border-radius:99px; overflow:hidden;
+    background:rgba(127,140,170,0.18);
+  }
+  .pollbar i {
+    display:block; height:100%; border-radius:99px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    transition:width 0.4s ease;
+  }
+
+  .docbox {
+    display:flex; align-items:center; gap:11px;
+    background:rgba(127,140,170,0.08); border:1px solid var(--line);
+    border-radius:14px; padding:10px 13px; margin:4px 0 8px;
+  }
+  .docico { font-size:20px; flex:none; }
+  .docname { font-size:13px; font-weight:600; word-break:break-all; }
+  .docsize { font-size:11.5px; color:var(--muted); margin-top:2px; }
+
+  .linkcard {
+    display:flex; gap:11px; align-items:stretch;
+    background:rgba(55,174,226,0.05);
+    border:1px solid var(--line); border-right:3px solid var(--accent);
+    border-radius:11px; overflow:hidden;
+    margin:6px 0 4px; padding:10px 12px;
+    text-decoration:none; color:inherit;
+    transition:background 0.12s;
+  }
+  a.linkcard:hover { background:rgba(55,174,226,0.12); }
+  .linkcard img {
+    width:64px; height:64px; object-fit:cover; flex:none;
+    border-radius:8px; border:none;
+  }
+  .linkmeta { min-width:0; }
+  .linktitle { font-size:13px; font-weight:700; color:var(--accent); }
+  .linkdesc { font-size:12px; color:var(--muted); margin-top:3px; line-height:1.5; }
+
+  /* ===== pinned + unread ================================================= */
+  .rowpin {
+    position:absolute; top:6px; right:6px;
+    width:18px; height:18px; line-height:17px; text-align:center;
+    border-radius:50%; font-size:10px;
+    opacity:0; transition:opacity 0.12s;
+  }
+  .row:hover .rowpin { opacity:0.85; }
+  .rowpin:hover { background:rgba(55,174,226,0.25); }
+  .row.pinned .rowpin { opacity:0.85; }
+  .pinmark { font-size:10.5px; opacity:0.75; }
+
+  .unreadline {
+    display:flex; align-items:center; gap:12px;
+    margin:14px 0 10px; color:var(--accent);
+    font-size:12px; font-weight:700;
+  }
+  .unreadline::before, .unreadline::after {
+    content:''; flex:1; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(55,174,226,0.55),transparent);
+  }
+
+  /* ===== light-mode contrast fixes =======================================
+     White bubbles were disappearing into a near-white background, and several
+     fixed dark surfaces (toast, hovers, scrollbars) inverted badly. Every
+     hard-coded dark/white below gets a light twin. */
+  body.light .msg {
+    border-color:rgba(20,30,60,0.13);
+    box-shadow:0 1px 4px rgba(25,35,70,0.10), 0 4px 16px rgba(25,35,70,0.07);
+  }
+  body.light .msg.fresh { box-shadow:0 0 0 1px rgba(30,136,210,0.55), 0 6px 24px rgba(30,136,210,0.18); }
+  body.light #toast {
+    background:rgba(255,255,255,0.98); border-color:rgba(20,30,60,0.15);
+    box-shadow:0 8px 24px rgba(25,35,70,0.25);
+  }
+  body.light ::-webkit-scrollbar-thumb { background:rgba(20,30,60,0.22); }
+  body.light ::-webkit-scrollbar-thumb:hover { background:rgba(20,30,60,0.34); }
+  body.light .row:hover { background:rgba(20,30,60,0.055); }
+  body.light .iconbtn { background:rgba(20,30,60,0.05); }
+  body.light .datesep span { background:rgba(255,255,255,0.85); }
+  body.light .msgtext a { color:#1565c0; border-bottom-color:rgba(21,101,192,0.35); }
+  body.light #downbtn {
+    background:rgba(255,255,255,0.96); border-color:rgba(30,136,210,0.4);
+    box-shadow:0 6px 18px rgba(25,35,70,0.2);
+  }
+  body.light .stbadge { background:rgba(20,30,60,0.07); }
+  body.light .msgtext.clamped::after { background:linear-gradient(transparent,#ffffff); }
+  body.light .durbadge { background:rgba(10,13,22,0.65); }
+  body.light #statusbar { background:rgba(224,150,10,0.12); border-bottom-color:rgba(200,130,0,0.3); }
+  body.light #statusbar.calm { background:rgba(30,136,210,0.08); border-bottom-color:rgba(30,136,210,0.25); }
+
   @media (max-width:680px) {
     #side { width:76px; }
     .rowmid, .rowside, .appmeta { display:none; }
@@ -482,6 +651,7 @@ const feedPage = `<!DOCTYPE html>
         <div id="headtitle">כל הערוצים</div>
         <div id="headsub"></div>
       </div>
+      <div class="iconbtn" id="kwbtn" title="מילות מפתח להתראות">⚙️</div>
       <div class="iconbtn" id="themebtn" title="מצב בהיר/כהה">🌓</div>
       <div class="iconbtn" id="searchbtn" title="חיפוש בארכיון">🔍</div>
       <div class="iconbtn" id="refreshbtn" title="עדכן עכשיו">⟳</div>
@@ -493,9 +663,12 @@ const feedPage = `<!DOCTYPE html>
       <input id="searchinput" placeholder="חיפוש בכל ההיסטוריה שנשמרה…" spellcheck="false">
       <div class="iconbtn" id="searchclose" title="סגור חיפוש">✕</div>
     </div>
+    <!-- NOTE: this bar's text span is sbartext — NOT statustext, which is the
+         sidebar's connection label. They were once the same id, and the
+         banner silently wrote its words into the wrong element. -->
     <div id="statusbar" style="display:none">
       <span id="statusicon">⏳</span>
-      <span id="statustext"></span>
+      <span id="sbartext"></span>
       <span id="statusmore" title="פירוט לפי ערוץ">פירוט</span>
     </div>
     <div id="statuspanel" style="display:none"></div>
@@ -513,7 +686,29 @@ const feedPage = `<!DOCTYPE html>
   </main>
 </div>
 
-<div id="lightbox"><img id="lightboximg" alt=""></div>
+<div id="lightbox">
+  <div class="lbnav" id="lbprev" style="display:none">‹</div>
+  <img id="lightboximg" alt="">
+  <div class="lbnav" id="lbnext" style="display:none">›</div>
+  <div id="lbcount" style="display:none"></div>
+</div>
+
+<div class="modal-back" id="kwback">
+  <div class="modal">
+    <h3>מילות מפתח להתראות</h3>
+    <p>שולט רק על החלוניות הקופצות — הדף תמיד מציג הכל.<br>
+       הפרד מילים בפסיק או בשורה חדשה. השאר ריק = הכל קופץ.</p>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:5px">הקפץ רק הודעות שמכילות:</div>
+    <textarea id="kwinclude" rows="2" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:11px;font:inherit;font-size:13px;padding:9px 12px;outline:none;resize:vertical"></textarea>
+    <div style="font-size:12px;color:var(--muted);margin:10px 0 5px">אל תקפיץ הודעות שמכילות:</div>
+    <textarea id="kwexclude" rows="2" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:11px;font:inherit;font-size:13px;padding:9px 12px;outline:none;resize:vertical"></textarea>
+    <div class="err" id="kwerr"></div>
+    <div class="btns">
+      <button class="cancel" id="kwcancel">ביטול</button>
+      <button class="ok" id="kwsave">שמור</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-back" id="modalback">
   <div class="modal">
@@ -550,6 +745,7 @@ const feedPage = `<!DOCTYPE html>
   var current = 'all';
   var channels = [];
   var unread = {};      // channel -> count
+  var unreadFirst = {}; // channel -> key of the first message that arrived unseen
   var lastMsg = {};     // channel -> {ts, preview}
   var oldestPer = {};   // channel -> smallest loaded id
   var donePer = {};     // channel -> no more history
@@ -557,6 +753,29 @@ const feedPage = `<!DOCTYPE html>
 
   var chat = document.getElementById('chat');
   var msgs = document.getElementById('msgs');
+  var scrollPos = {};  // channel -> saved scroll position when switching away
+
+  // Loading skeleton: shimmering placeholder bubbles instead of a blank pane
+  // while the first batch loads.
+  (function () {
+    for (var i = 0; i < 3; i++) {
+      var sk = document.createElement('div');
+      sk.className = 'skel';
+      sk.setAttribute('data-skel', '1');
+      var widths = [[70, 95, 40], [88, 55], [60, 92, 78]][i];
+      for (var j = 0; j < widths.length; j++) {
+        var l = document.createElement('div');
+        l.className = 'l';
+        l.style.width = widths[j] + '%';
+        sk.appendChild(l);
+      }
+      msgs.appendChild(sk);
+    }
+  })();
+  function clearSkeleton() {
+    var sks = msgs.querySelectorAll('[data-skel]');
+    for (var i = 0; i < sks.length; i++) sks[i].remove();
+  }
 
   function openUrl(u) { window.open(u, '_blank', 'noopener'); return false; }
 
@@ -583,6 +802,7 @@ const feedPage = `<!DOCTYPE html>
     if (photo) {
       var img = document.createElement('img');
       img.alt = '';
+      img.referrerPolicy = 'no-referrer'; // Telegram's CDN must not see a local referrer
       img.onload = function () { el.textContent = ''; el.appendChild(img); };
       img.src = photo;
     }
@@ -632,16 +852,31 @@ const feedPage = `<!DOCTYPE html>
     allMid.className = 'rowmid';
     allMid.innerHTML = '<div class="rowname">כל הערוצים</div><div class="rowprev">ציר זמן ממוזג</div>';
     allRow.appendChild(allMid);
+    // Total unread across every channel, so nothing gets missed while a
+    // single channel is in focus.
+    var totalUnread = 0;
+    channels.forEach(function (c) { totalUnread += (unread[c.name] || 0); });
+    if (totalUnread > 0 && current !== 'all') {
+      var allSide = document.createElement('div');
+      allSide.className = 'rowside';
+      var allBd = document.createElement('div');
+      allBd.className = 'badge show';
+      allBd.textContent = totalUnread;
+      allSide.appendChild(allBd);
+      allRow.appendChild(allSide);
+    }
     allRow.onclick = function () { select('all'); };
     list.appendChild(allRow);
 
+    // Pinned channels float to the top; inside each group, recency wins.
     var ordered = channels.slice().sort(function (a, b) {
+      if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
       return ((lastMsg[b.name] || {}).ts || 0) - ((lastMsg[a.name] || {}).ts || 0);
     });
 
     ordered.forEach(function (ch) {
       var row = document.createElement('div');
-      row.className = 'row' + (current === ch.name ? ' active' : '');
+      row.className = 'row' + (current === ch.name ? ' active' : '') + (ch.pinned ? ' pinned' : '');
 
       var ava = document.createElement('div');
       ava.className = 'ava';
@@ -653,6 +888,12 @@ const feedPage = `<!DOCTYPE html>
       var nm = document.createElement('div');
       nm.className = 'rowname';
       nm.textContent = ch.title || ('@' + ch.name);
+      if (ch.pinned) {
+        var pm = document.createElement('span');
+        pm.className = 'pinmark';
+        pm.textContent = ' 📌';
+        nm.appendChild(pm);
+      }
       if (ch.muted) {
         var mm = document.createElement('span');
         mm.className = 'mutedmark';
@@ -688,6 +929,26 @@ const feedPage = `<!DOCTYPE html>
           .then(function () { location.reload(); });
       };
       row.appendChild(x);
+
+      var pin = document.createElement('div');
+      pin.className = 'rowpin';
+      pin.textContent = '📌';
+      pin.title = ch.pinned ? 'בטל נעיצה' : 'נעץ למעלה';
+      pin.onclick = function (ev) {
+        ev.stopPropagation();
+        var target = !ch.pinned;
+        fetch('/api/pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: ch.name, pinned: target })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (!d.ok) { toast(d.error || 'שגיאה'); return; }
+          ch.pinned = d.pinned;
+          renderSidebar();
+          toast(d.pinned ? 'הערוץ ננעץ לראש הרשימה' : 'הנעיצה בוטלה');
+        }).catch(function () { toast('שגיאת תקשורת'); });
+      };
+      row.appendChild(pin);
 
       row.onclick = function () { select(ch.name); };
       list.appendChild(row);
@@ -750,6 +1011,7 @@ const feedPage = `<!DOCTYPE html>
   }
 
   function select(ch) {
+    if (ch !== current) scrollPos[current] = chat.scrollTop; // remember where you were
     current = ch;
     if (ch === 'all') { channels.forEach(function (c) { unread[c.name] = 0; }); }
     else unread[ch] = 0;
@@ -767,7 +1029,34 @@ const feedPage = `<!DOCTYPE html>
     renderHead();
     hideJump();
     renderEmptyState();
-    scrollBottom(true);
+
+    // "עד כאן קראת": entering a channel that accumulated unread messages
+    // drops a marker line at the first unseen one and lands you THERE, so you
+    // read forward naturally instead of hunting for where you left off.
+    var old = document.getElementById('unreadline');
+    if (old) old.remove();
+    var anchorKey = (ch !== 'all') && unreadFirst[ch];
+    delete unreadFirst[ch];
+    if (ch === 'all') { unreadFirst = {}; }
+    if (anchorKey) {
+      var anchor = document.getElementById('m' + anchorKey);
+      if (anchor) {
+        var line = document.createElement('div');
+        line.className = 'unreadline';
+        line.id = 'unreadline';
+        line.textContent = 'הודעות חדשות';
+        msgs.insertBefore(line, anchor);
+        line.scrollIntoView({ block: 'center' });
+        return;
+      }
+    }
+    // No unread anchor: return to where you were in this channel last time,
+    // or to the bottom on first visit.
+    if (typeof scrollPos[ch] === 'number') {
+      chat.scrollTop = scrollPos[ch];
+    } else {
+      scrollBottom(true);
+    }
   }
 
   // ----- date separators ----------------------------------------------------
@@ -795,6 +1084,7 @@ const feedPage = `<!DOCTYPE html>
   function renderEmptyState() {
     var ex = document.getElementById('emptystate');
     if (ex) ex.remove();
+    if (msgs.querySelector('[data-skel]')) return; // still loading — skeleton shows
     if (visibleCount() === 0) {
       var e = document.createElement('div');
       e.className = 'empty'; e.id = 'emptystate';
@@ -812,6 +1102,7 @@ const feedPage = `<!DOCTYPE html>
   }
 
   function makeNode(it) {
+    clearSkeleton();
     var holder = document.createElement('div');
     holder.innerHTML = it.html || '';
     // Skip any leading text/whitespace node so we always grab the <article>.
@@ -829,8 +1120,45 @@ const feedPage = `<!DOCTYPE html>
         im.onerror = function () { im.classList.add('ld'); };
       })(imgs[i]);
     }
+    // GIF-like previews play ONLY while on screen, always muted. Playing
+    // every preview at once (the old autoplay attribute) both dragged the
+    // whole page down and — through the retry path — caused the audio storm.
+    var gifs = node.querySelectorAll('video.gifvid');
+    for (var vi = 0; vi < gifs.length; vi++) {
+      (function (v) {
+        v.muted = true;
+        v.volume = 0;
+        v.addEventListener('volumechange', function () {
+          if (!v.muted) { v.muted = true; v.volume = 0; }
+        });
+        if (gifObserver) {
+          gifObserver.observe(v);
+        } else {
+          v.autoplay = true; // ancient browser fallback — still muted
+          var p = v.play();
+          if (p && p.catch) p.catch(function () {});
+        }
+      })(gifs[vi]);
+    }
     return node;
   }
+
+  // Plays each GIF preview only while visible; pauses (and frees the
+  // decoder) the moment it scrolls away.
+  var gifObserver = ('IntersectionObserver' in window)
+    ? new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          var v = entries[i].target;
+          if (entries[i].isIntersecting) {
+            v.muted = true; v.volume = 0;
+            var p = v.play();
+            if (p && p.catch) p.catch(function () {});
+          } else {
+            try { v.pause(); } catch (e) {}
+          }
+        }
+      }, { root: chat, rootMargin: '250px' })
+    : null;
 
   // Keep the DOM bounded on very long sessions — but never yank content out
   // from under someone who scrolled up to read.
@@ -841,8 +1169,26 @@ const feedPage = `<!DOCTYPE html>
     for (var i = 0; i < extra; i++) nodes[i].remove();
   }
 
-  // Long messages collapse with a fade + "show more" toggle.
+  // Long messages collapse with a fade + "show more" toggle. Measuring text
+  // height forces layout, and doing that for 700 history bubbles froze the
+  // boot — so measurement now waits until a bubble first scrolls into view.
+  var clampObserver = ('IntersectionObserver' in window)
+    ? new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) {
+            clampNow(entries[i].target);
+            clampObserver.unobserve(entries[i].target);
+          }
+        }
+      }, { root: chat, rootMargin: '300px' })
+    : null;
+
   function applyClamp(node) {
+    if (clampObserver) { clampObserver.observe(node); return; }
+    clampNow(node);
+  }
+
+  function clampNow(node) {
     var t = node.querySelector('.msgtext');
     if (!t || t.getAttribute('data-clamped')) return;
     t.setAttribute('data-clamped', '1');
@@ -873,6 +1219,13 @@ const feedPage = `<!DOCTYPE html>
 
   // Any inline video that fails to stream straight from the CDN gets one
   // automatic retry THROUGH the app's own streaming proxy.
+  //
+  // CRITICAL: the retry must NEVER start playback on its own. Archived
+  // messages carry video URLs whose tokens expire; on page load dozens of
+  // them fire 'error' at once, and an unconditional play() here turned that
+  // into a wall of overlapping sound ("the videos open by themselves" — the
+  // user diagnosed it exactly). Only muted GIF-like previews (autoplay attr)
+  // resume; everything else just gets a working source and WAITS for a click.
   msgs.addEventListener('error', function (ev) {
     var v = ev.target;
     if (!v || v.tagName !== 'VIDEO') return;
@@ -883,8 +1236,13 @@ const feedPage = `<!DOCTYPE html>
     v.src = proxy;
     v.load();
     if (t > 0.5) { v.currentTime = t; }
-    var p = v.play();
-    if (p && p.catch) p.catch(function () {});
+    // NEVER auto-plays anything. A repaired GIF preview resumes through the
+    // visibility observer (re-observe forces an immediate visibility check);
+    // a user video waits for the user's click.
+    if (gifObserver && v.classList.contains('gifvid')) {
+      gifObserver.unobserve(v);
+      gifObserver.observe(v);
+    }
   }, true);
 
   // Long videos: clicking the preview asks OUR server for the direct video
@@ -957,6 +1315,23 @@ const feedPage = `<!DOCTYPE html>
       .catch(function () { restore('שגיאת תקשורת'); });
   });
 
+  // Coalesced UI refresh: a burst of incoming messages triggers ONE sidebar
+  // rebuild and ONE separator pass on the next frame, instead of a full
+  // O(everything) re-render per message. This alone removes most of the
+  // "everything feels heavy" jank during active hours.
+  var _uiPending = false;
+  function scheduleUI() {
+    if (_uiPending) return;
+    _uiPending = true;
+    requestAnimationFrame(function () {
+      _uiPending = false;
+      rebuildSeparators();
+      renderEmptyState();
+      renderSidebar();
+      renderHead();
+    });
+  }
+
   function appendBottom(it, fresh) {
     if (document.getElementById('m' + it.key)) return;
     var wasNear = nearBottom();
@@ -969,8 +1344,6 @@ const feedPage = `<!DOCTYPE html>
     msgs.appendChild(node);
     applyClamp(node);
     trimDom();
-    rebuildSeparators();
-    renderEmptyState();
 
     var visible = (current === 'all' || it.channel === current);
     if (fresh) {
@@ -980,14 +1353,15 @@ const feedPage = `<!DOCTYPE html>
         pendingJump++; showJump();
       } else {
         unread[it.channel] = (unread[it.channel] || 0) + 1;
+        // Remember where the unread run starts, for the "עד כאן קראת" line.
+        if (!unreadFirst[it.channel]) unreadFirst[it.channel] = it.key;
       }
       if (document.hidden) {
         titleUnread++;
         document.title = '(' + titleUnread + ') ' + baseTitle;
       }
     }
-    renderSidebar();
-    renderHead();
+    scheduleUI();
   }
 
   function prependTop(items) { // oldest..newest batch
@@ -1072,6 +1446,39 @@ const feedPage = `<!DOCTYPE html>
     });
   }
 
+  // ----- keyword settings ---------------------------------------------------
+  function splitKw(s) {
+    return s.split(/[,\n;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  document.getElementById('kwbtn').onclick = function () {
+    fetch('/api/keywords').then(function (r) { return r.json(); }).then(function (d) {
+      document.getElementById('kwinclude').value = (d.include || []).join(', ');
+      document.getElementById('kwexclude').value = (d.exclude || []).join(', ');
+      document.getElementById('kwerr').textContent = '';
+      document.getElementById('kwback').style.display = 'flex';
+    }).catch(function () { toast('שגיאת תקשורת'); });
+  };
+  document.getElementById('kwcancel').onclick = function () {
+    document.getElementById('kwback').style.display = 'none';
+  };
+  document.getElementById('kwback').onclick = function (ev) {
+    if (ev.target === this) this.style.display = 'none';
+  };
+  document.getElementById('kwsave').onclick = function () {
+    fetch('/api/keywords', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        include: splitKw(document.getElementById('kwinclude').value),
+        exclude: splitKw(document.getElementById('kwexclude').value)
+      })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { document.getElementById('kwerr').textContent = d.error || 'שגיאה'; return; }
+      document.getElementById('kwback').style.display = 'none';
+      toast('מילות המפתח נשמרו');
+    }).catch(function () { document.getElementById('kwerr').textContent = 'שגיאת תקשורת'; });
+  };
+
   // ----- add-channel modal --------------------------------------------------
   function openModal() {
     document.getElementById('chanerr').textContent = '';
@@ -1127,6 +1534,7 @@ const feedPage = `<!DOCTYPE html>
     renderSidebar();
     renderHead();
     scrollBottom(true);
+    handleHashTarget(); // popup deep link: land on the exact message
   }).catch(function (e) {
     var meta = document.getElementById('emptystate');
     var m = document.getElementById('msgs');
@@ -1184,7 +1592,7 @@ const feedPage = `<!DOCTYPE html>
   function pollStatus() {
     fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
       var bar = document.getElementById('statusbar');
-      var txt = document.getElementById('statustext');
+      var txt = document.getElementById('sbartext');
       var ico = document.getElementById('statusicon');
       if (!bar || !txt) return;
 
@@ -1310,17 +1718,49 @@ const feedPage = `<!DOCTYPE html>
     searchTimer = setTimeout(runSearch, 300);
   });
 
-  // ----- photo lightbox -----------------------------------------------------
+  // ----- photo lightbox (with album navigation) -----------------------------
+  var lbList = [], lbIdx = 0;
+  function lbShow(i) {
+    if (!lbList.length) return;
+    lbIdx = (i + lbList.length) % lbList.length;
+    document.getElementById('lightboximg').src = lbList[lbIdx];
+    var multi = lbList.length > 1;
+    document.getElementById('lbprev').style.display = multi ? 'block' : 'none';
+    document.getElementById('lbnext').style.display = multi ? 'block' : 'none';
+    var c = document.getElementById('lbcount');
+    c.style.display = multi ? 'block' : 'none';
+    if (multi) c.textContent = (lbIdx + 1) + ' / ' + lbList.length;
+    document.getElementById('lightbox').style.display = 'flex';
+  }
+  function lbClose() { document.getElementById('lightbox').style.display = 'none'; }
   msgs.addEventListener('click', function (ev) {
     var img = ev.target;
     if (!img || img.tagName !== 'IMG') return;
     if (img.closest && img.closest('.vidwrap')) return; // video thumbs have their own click
-    document.getElementById('lightboximg').src = img.src;
-    document.getElementById('lightbox').style.display = 'flex';
+    if (img.closest && img.closest('.linkcard')) return; // link cards navigate
+    // An album groups its photos: collect siblings so ‹ › browses the set.
+    var scope = (img.closest && img.closest('.album')) || img;
+    var imgsIn = scope.tagName === 'IMG' ? [scope] : scope.querySelectorAll('img');
+    lbList = [];
+    var start = 0;
+    for (var i = 0; i < imgsIn.length; i++) {
+      lbList.push(imgsIn[i].src);
+      if (imgsIn[i] === img) start = i;
+    }
+    lbShow(start);
   });
-  document.getElementById('lightbox').onclick = function () { this.style.display = 'none'; };
+  document.getElementById('lbprev').onclick = function (ev) { ev.stopPropagation(); lbShow(lbIdx - 1); };
+  document.getElementById('lbnext').onclick = function (ev) { ev.stopPropagation(); lbShow(lbIdx + 1); };
+  document.getElementById('lightbox').onclick = function (ev) {
+    if (ev.target.id === 'lightboximg' && lbList.length > 1) { lbShow(lbIdx + 1); return; }
+    lbClose();
+  };
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape') document.getElementById('lightbox').style.display = 'none';
+    var open = document.getElementById('lightbox').style.display === 'flex';
+    if (!open) return;
+    if (ev.key === 'Escape') lbClose();
+    if (ev.key === 'ArrowRight') lbShow(lbIdx - 1); // RTL: right = previous
+    if (ev.key === 'ArrowLeft') lbShow(lbIdx + 1);
   });
 
   // ----- theme --------------------------------------------------------------
@@ -1450,6 +1890,39 @@ const feedPage = `<!DOCTYPE html>
     }).catch(function () {});
   }
 
+  // ----- jump-to-message (popup clicks land HERE, in this tab) ---------------
+  // A popup click never opens another page while this one lives: the server
+  // broadcasts a goto and this tab selects the channel, scrolls to the exact
+  // message, highlights it, and starts its video in place.
+  function gotoMessage(channel, id) {
+    var key = channel + '_' + id;
+    if (chanByName(channel) && current !== channel) select(channel);
+    var node = document.getElementById('m' + key);
+    if (!node) { if (current !== 'all') select('all'); node = document.getElementById('m' + key); }
+    if (!node) { resync(); node = document.getElementById('m' + key); }
+    if (!node) return;
+    node.scrollIntoView({ block: 'center' });
+    node.classList.add('fresh');
+    setTimeout(function () { node.classList.remove('fresh'); }, 4000);
+
+    // Play the video right here, inside the channel.
+    var wrap = node.querySelector('.embedwrap');
+    if (wrap) { wrap.click(); return; } // loads + plays through the app
+    var v = node.querySelector('video[controls]');
+    if (v) {
+      var p = v.play();
+      if (p && p.catch) p.catch(function () { toast('לחץ ▶ על הסרטון כדי לנגן'); });
+    }
+  }
+
+  // Deep link: a freshly opened page (no tab existed) lands on the message.
+  function handleHashTarget() {
+    var m = (location.hash || '').match(/^#msg=([A-Za-z0-9_]+)_(\d+)$/);
+    if (!m) return;
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    setTimeout(function () { gotoMessage(m[1], parseInt(m[2], 10)); }, 600);
+  }
+
   var es = new EventSource('/api/stream');
   es.onopen = function () {
     setStatus(true);
@@ -1470,6 +1943,20 @@ const feedPage = `<!DOCTYPE html>
   es.onmessage = function (ev) {
     try {
       var d = JSON.parse(ev.data);
+      if (d.type === 'chaninfo') {
+        // A channel's real name/avatar just arrived — refresh it in place.
+        var ci = chanByName(d.channel);
+        if (ci) {
+          if (d.title) ci.title = d.title;
+          if (d.photo) ci.photo = d.photo;
+          scheduleUI();
+        }
+        return;
+      }
+      if (d.type === 'goto') {
+        gotoMessage(d.channel, d.id);
+        return;
+      }
       if (d.type === 'videoready') {
         // A video that previously failed is now playable — light it up.
         var wrap = document.querySelector('[data-embed="' + d.channel + '/' + d.id + '"]');

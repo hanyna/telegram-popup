@@ -171,8 +171,13 @@ func TestStatusBoardReportsPerChannel(t *testing.T) {
 	if byName["untouched"].OK {
 		t.Error("a never-fetched channel must not report OK")
 	}
-	if !l.AnyBlocked() {
-		t.Error("AnyBlocked must be true while a channel is blocked")
+	if !l.AnyBlocked([]string{"good", "bad"}) {
+		t.Error("AnyBlocked must be true while a listed channel is blocked")
+	}
+	// A blocked channel that was REMOVED from the list must not keep the
+	// banner alive — this was a real bug.
+	if l.AnyBlocked([]string{"good"}) {
+		t.Error("AnyBlocked must ignore channels no longer in the list")
 	}
 }
 

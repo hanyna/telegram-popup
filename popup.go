@@ -170,7 +170,35 @@ const htmlTemplate = `<!DOCTYPE html>
   document.body.onmouseover = function () { paused = true; };
   document.body.onmouseout  = function () { paused = false; };
 
+  // ---- HARD MUTE ----------------------------------------------------------
+  // This popup renders on the IE11 engine, which IGNORES the muted ATTRIBUTE
+  // on autoplaying videos — so speech blared out of every video popup. The
+  // muted PROPERTY (set from script) IS honored, so force it, repeatedly, on
+  // every video: a notification card must never make content noise.
+  function muteAll() {
+    try {
+      // There should be NO media elements in this card at all anymore —
+      // videos render as still frames. This watchdog stays as the last line
+      // of defence: anything that somehow plays gets muted AND paused.
+      var vs = document.getElementsByTagName('video');
+      for (var i = 0; i < vs.length; i++) {
+        vs[i].muted = true;
+        vs[i].volume = 0;
+        try { vs[i].pause(); } catch (e) {}
+      }
+      var as = document.getElementsByTagName('audio');
+      for (var j = 0; j < as.length; j++) {
+        as[j].muted = true;
+        as[j].volume = 0;
+        try { as[j].pause(); } catch (e) {}
+      }
+    } catch (e) {}
+  }
+  muteAll();
+  setInterval(muteAll, 300); // survives late loads and codec restarts
+
   window.onload = function () {
+    muteAll();
     var card = document.getElementById('card');
     // Convert CSS pixels to device pixels so the host window matches the
     // card exactly on scaled displays (125%/150% DPI).
@@ -209,6 +237,12 @@ func BuildPopupHTML(title string, msg Message, stamp string, seconds int) string
 		bodyHTML = `<div class="body">` + richText(msg.Text) + `</div>`
 	}
 
+	// Posts whose content is non-visual (voice, poll, file, round note) used
+	// to produce a half-empty card. Say what arrived instead.
+	if label := mediaLabel(msg); label != "" {
+		bodyHTML += `<div class="body" style="color:#8b93a9">` + label + `</div>`
+	}
+
 	photoHTML := mediaHTML(msg)
 
 	r := strings.NewReplacer(
@@ -235,21 +269,63 @@ func mediaHTML(msg Message) string {
 
 	switch {
 	case msg.Video != "":
-		poster := ""
+		// NO <video> element in popups, ever. The IE-engine card proved able
+		// to leak content audio despite muted attributes, muted properties and
+		// watchdog script (the user heard walls of speech). A notification is
+		// not a player: show the preview frame with a play badge; the click
+		// opens the live page, where the video plays properly. Silence here is
+		// guaranteed by construction — there is nothing that CAN make noise.
 		if msg.VideoThumb != "" {
-			poster = ` poster="` + html.EscapeString(msg.VideoThumb) + `"`
+			return `<div class="photo"><div class="vidwrap">` +
+				`<img src="` + html.EscapeString(msg.VideoThumb) + `" alt="">` +
+				`<div class="playbtn"><span></span></div>` + badge + `</div></div>`
 		}
-		return `<div class="photo"><div class="vidwrap">` +
-			`<video src="` + html.EscapeString(msg.Video) + `"` + poster +
-			` autoplay muted loop playsinline></video>` + badge + `</div></div>`
+		return `<div class="photo"><div class="vidwrap" style="background:#0d1120">` +
+			`<div class="playbtn"><span></span></div>` + badge + `</div></div>`
 
 	case msg.VideoThumb != "":
 		return `<div class="photo"><div class="vidwrap">` +
 			`<img src="` + html.EscapeString(msg.VideoThumb) + `" alt="">` +
 			`<div class="playbtn"><span></span></div>` + badge + `</div></div>`
 
+	case msg.Sticker != "":
+		return `<div class="photo"><img src="` + html.EscapeString(msg.Sticker) + `" alt="" style="max-width:170px;margin:0 auto;display:block"></div>`
+
 	case msg.Photo != "":
+		album := ""
+		if n := len(msg.Photos); n > 1 {
+			album = `<span class="durbadge">📷 אלבום · ` + strconv.Itoa(n) + `</span>`
+		}
+		if album != "" {
+			return `<div class="photo"><div class="vidwrap" style="padding-bottom:0;height:auto;position:relative">` +
+				`<img src="` + html.EscapeString(msg.Photo) + `" alt="" style="position:static;transform:none;width:100%;display:block">` +
+				album + `</div></div>`
+		}
 		return `<div class="photo"><img src="` + html.EscapeString(msg.Photo) + `" alt=""></div>`
+	}
+	return ""
+}
+
+// mediaLabel describes attachments the popup cannot (or should not) render —
+// so the notification still tells the user WHAT arrived.
+func mediaLabel(msg Message) string {
+	switch {
+	case msg.Voice != "":
+		l := "🎤 הודעה קולית"
+		if msg.VoiceDur != "" {
+			l += " · " + html.EscapeString(msg.VoiceDur)
+		}
+		return l
+	case msg.Round != "":
+		return "🎬 סרטון עגול — פתח את הדף לצפייה"
+	case msg.Poll != "":
+		return "📊 סקר: " + html.EscapeString(msg.Poll)
+	case msg.Doc != "":
+		l := "📎 " + html.EscapeString(msg.Doc)
+		if msg.DocSize != "" {
+			l += " (" + html.EscapeString(msg.DocSize) + ")"
+		}
+		return l
 	}
 	return ""
 }
@@ -305,6 +381,7 @@ const popupScript = `param(
   [string]$TextFile = "",
   [string]$Title = "Telegram",
   [string]$Url = "",
+  [string]$Goto = "",
   [string]$Stamp = "",
   [int]$Seconds = 15,
   [int]$Offset = 0,
@@ -319,6 +396,16 @@ try {
   $fc = 'HKCU:\Software\Microsoft\Internet Explorer\Main\FeatureControl\FEATURE_BROWSER_EMULATION'
   if (-not (Test-Path $fc)) { New-Item -Path $fc -Force | Out-Null }
   New-ItemProperty -Path $fc -Name 'powershell.exe' -Value 11001 -PropertyType DWord -Force | Out-Null
+} catch {}
+
+# The legacy engine also plays UI noises of its own (the navigation "click",
+# among others). Kill every sound feature it has, for this process only.
+try {
+  foreach ($feat in @('FEATURE_DISABLE_NAVIGATION_SOUNDS')) {
+    $fk = "HKCU:\Software\Microsoft\Internet Explorer\Main\FeatureControl\$feat"
+    if (-not (Test-Path $fk)) { New-Item -Path $fk -Force | Out-Null }
+    New-ItemProperty -Path $fk -Name 'powershell.exe' -Value 1 -PropertyType DWord -Force | Out-Null
+  }
 } catch {}
 
 # --- JS <-> host bridge ----------------------------------------------------
@@ -407,7 +494,24 @@ function Show-Html {
   $bridge = New-Object PopupBridge
   $bridge.CloseAction = [Action]$dismiss
   $bridge.OpenAction = [Action]{
-    if ($Url -ne '') { try { Start-Process $Url } catch {} }
+    # Never open a duplicate page: first ask the app whether a live-page tab
+    # is already listening. If yes, that tab jumps to this exact message by
+    # itself (and plays its video in place) — we only try to bring the
+    # browser forward. A new page opens ONLY when no tab exists.
+    $handled = $false
+    if ($Goto -ne '') {
+      try {
+        $resp = Invoke-RestMethod -Uri $Goto -TimeoutSec 3
+        if ($resp.clients -ge 1) {
+          $handled = $true
+          try {
+            $sh = New-Object -ComObject WScript.Shell
+            [void]$sh.AppActivate('ערוץ חי')
+          } catch {}
+        }
+      } catch {}
+    }
+    if (-not $handled -and $Url -ne '') { try { Start-Process $Url } catch {} }
     & $dismiss
   }.GetNewClosure()
   $bridge.OpenUrlAction = [Action[string]]{
@@ -630,13 +734,25 @@ func ShowPopup(scriptPath, tmpDir, title string, msg Message, seconds, offset in
 		soundFlag = "1"
 	}
 
+	// A click must land on THIS message inside the ALREADY-OPEN page:
+	// gotoURL asks the app to broadcast a jump to any listening tab, and the
+	// anchor URL is the fallback that opens a page only when none is open —
+	// deep-linked so the new page also lands on the message.
+	gotoURL, anchorURL := "", PopupClickURL
+	if PopupClickURL != "" {
+		key := msg.Channel + "_" + strconv.Itoa(msg.ID)
+		gotoURL = PopupClickURL + "/api/goto?channel=" + msg.Channel + "&id=" + strconv.Itoa(msg.ID)
+		anchorURL = PopupClickURL + "/#msg=" + key
+	}
+
 	cmd := exec.Command("powershell.exe",
 		"-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
 		"-File", scriptPath,
 		"-HtmlFile", htmlFile,
 		"-TextFile", textFile,
 		"-Title", title,
-		"-Url", PopupClickURL,
+		"-Url", anchorURL,
+		"-Goto", gotoURL,
 		"-Stamp", stamp,
 		"-Seconds", strconv.Itoa(seconds),
 		"-Offset", strconv.Itoa(offset),

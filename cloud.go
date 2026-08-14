@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	// Embedded timezone database: the scratch-based cloud image has no
@@ -29,8 +30,14 @@ import (
 //     list. The key is entered once; a cookie remembers it.
 // ---------------------------------------------------------------------------
 
-// inCloud reports whether we are running on a hosting platform.
-func inCloud() bool { return os.Getenv("PORT") != "" }
+// inCloud reports whether we are running on a hosting platform. The PORT env
+// var is the platform signal (Render, Fly, Heroku all set it) — but ONLY on
+// non-Windows: developer machines sometimes carry a stray PORT variable, and
+// flipping a desktop install into headless server mode because of it would
+// look exactly like "the app opens nothing".
+func inCloud() bool {
+	return runtime.GOOS != "windows" && os.Getenv("PORT") != ""
+}
 
 // applyCloudEnv rewrites the config for headless hosting and returns the
 // bind address and access key the feed should use.

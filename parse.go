@@ -8,7 +8,9 @@ import (
 )
 
 // Message is a single post scraped from the public channel page. The JSON
-// tags define the on-disk history format — keep them stable.
+// tags define the on-disk history format — keep them stable. New media kinds
+// are additive optional fields, so archives written by older versions still
+// load perfectly.
 type Message struct {
 	ID         int    `json:"id"`               // running post number inside the channel
 	Channel    string `json:"channel"`          // channel username the post belongs to
@@ -19,11 +21,33 @@ type Message struct {
 	Video      string `json:"video,omitempty"`  // inline mp4 URL when Telegram embeds the file itself
 	VideoThumb string `json:"vthumb,omitempty"` // preview frame for videos
 	Duration   string `json:"dur,omitempty"`    // human-readable video length, e.g. "0:31"
+
+	Photos    []string  `json:"photos,omitempty"`   // album: every photo (incl. the first)
+	Voice     string    `json:"voice,omitempty"`    // voice message audio URL (.ogg)
+	VoiceDur  string    `json:"vdur,omitempty"`     // voice message length, e.g. "0:39"
+	Round     string    `json:"round,omitempty"`    // round "video note" mp4 URL
+	Sticker   string    `json:"sticker,omitempty"`  // sticker image URL
+	Poll      string    `json:"poll,omitempty"`     // poll question
+	PollOpts  []PollOpt `json:"pollopts,omitempty"` // poll answers with percentages
+	LinkTitle string    `json:"lt,omitempty"`       // link-preview card: title
+	LinkDesc  string    `json:"ld,omitempty"`       //   description
+	LinkImage string    `json:"li,omitempty"`       //   image
+	LinkHref  string    `json:"lh,omitempty"`       //   destination URL
+	Doc       string    `json:"doc,omitempty"`      // attached file name
+	DocSize   string    `json:"docsize,omitempty"`  // attached file size, e.g. "2.3 MB"
 }
 
-// HasMedia reports whether the post carries any visual attachment.
+// PollOpt is one poll answer as rendered on the public page.
+type PollOpt struct {
+	Text string `json:"t"`
+	Pct  string `json:"p"` // e.g. "67%"
+}
+
+// HasMedia reports whether the post carries any attachment worth showing.
 func (m Message) HasMedia() bool {
-	return m.Photo != "" || m.Video != "" || m.VideoThumb != ""
+	return m.Photo != "" || m.Video != "" || m.VideoThumb != "" ||
+		len(m.Photos) > 0 || m.Voice != "" || m.Round != "" ||
+		m.Sticker != "" || m.Poll != "" || m.Doc != "" || m.LinkTitle != ""
 }
 
 // ChannelInfo is the channel's public identity as shown on its t.me page.
@@ -108,6 +132,21 @@ var (
 	reTag      = regexp.MustCompile(`(?s)<[^>]*>`)
 	reSpaces   = regexp.MustCompile(`[ \t]+`)
 	reNewlines = regexp.MustCompile(`\n{3,}`)
+
+	// Rich media kinds Telegram renders on public pages.
+	reRoundTag  = regexp.MustCompile(`<video[^>]*roundvideo[^>]*>`)
+	reVoiceSrc  = regexp.MustCompile(`<audio[^>]*src="([^"]+)"`)
+	reVoiceDur  = regexp.MustCompile(`voice_duration[^>]*>([^<]+)<`)
+	reSticker   = regexp.MustCompile(`tgme_widget_message_sticker[^>]*url\('([^']+)'\)`)
+	rePollQ     = regexp.MustCompile(`tgme_widget_message_poll_question[^>]*>([^<]+)<`)
+	rePollPct   = regexp.MustCompile(`tgme_widget_message_poll_option_percent[^>]*>([^<]+)<`)
+	rePollText  = regexp.MustCompile(`tgme_widget_message_poll_option_text[^>]*>([^<]*)<`)
+	reLinkHref  = regexp.MustCompile(`<a[^>]*class="[^"]*link_preview[^"]*"[^>]*href="([^"]+)"`)
+	reLinkTitle = regexp.MustCompile(`link_preview_title[^>]*>([^<]+)<`)
+	reLinkDesc  = regexp.MustCompile(`(?s)link_preview_description[^>]*>(.*?)</div>`)
+	reLinkImage = regexp.MustCompile(`link_preview[^>]*image[^>]*url\('([^']+)'\)`)
+	reDocTitle  = regexp.MustCompile(`document_title[^>]*>([^<]+)<`)
+	reDocExtra  = regexp.MustCompile(`document_extra[^>]*>([^<]+)<`)
 )
 
 // ParseMessages extracts every post bubble from a t.me/s/<channel> page.
@@ -139,17 +178,69 @@ func ParseMessages(page string) []Message {
 		if m := reTime.FindStringSubmatch(block); m != nil {
 			msg.Time = m[1]
 		}
-		if m := rePhoto.FindStringSubmatch(block); m != nil {
-			msg.Photo = html.UnescapeString(m[1])
+		// Albums: a grouped post carries several photo_wrap entries. Photo
+		// stays the first one (older code paths and the archive keep working);
+		// Photos carries the full set when there is more than one.
+		if all := rePhoto.FindAllStringSubmatch(block, -1); len(all) > 0 {
+			msg.Photo = html.UnescapeString(all[0][1])
+			if len(all) > 1 {
+				for _, p := range all {
+					msg.Photos = append(msg.Photos, html.UnescapeString(p[1]))
+				}
+			}
 		}
 		if m := reVideo.FindStringSubmatch(block); m != nil {
-			msg.Video = html.UnescapeString(m[1])
+			src := html.UnescapeString(m[1])
+			// A round "video note" renders as a circle, not a rectangle.
+			if reRoundTag.MatchString(block) {
+				msg.Round = src
+			} else {
+				msg.Video = src
+			}
 		}
 		if m := reVideoTh.FindStringSubmatch(block); m != nil {
 			msg.VideoThumb = html.UnescapeString(m[1])
 		}
 		if m := reDuration.FindStringSubmatch(block); m != nil {
 			msg.Duration = strings.TrimSpace(m[1])
+		}
+		if m := reVoiceSrc.FindStringSubmatch(block); m != nil {
+			msg.Voice = html.UnescapeString(m[1])
+			if d := reVoiceDur.FindStringSubmatch(block); d != nil {
+				msg.VoiceDur = strings.TrimSpace(d[1])
+			}
+		}
+		if m := reSticker.FindStringSubmatch(block); m != nil {
+			msg.Sticker = html.UnescapeString(m[1])
+		}
+		if m := rePollQ.FindStringSubmatch(block); m != nil {
+			msg.Poll = strings.TrimSpace(html.UnescapeString(m[1]))
+			pcts := rePollPct.FindAllStringSubmatch(block, -1)
+			texts := rePollText.FindAllStringSubmatch(block, -1)
+			for i := 0; i < len(pcts) && i < len(texts); i++ {
+				msg.PollOpts = append(msg.PollOpts, PollOpt{
+					Text: strings.TrimSpace(html.UnescapeString(texts[i][1])),
+					Pct:  strings.TrimSpace(pcts[i][1]),
+				})
+			}
+		}
+		if m := reLinkTitle.FindStringSubmatch(block); m != nil {
+			msg.LinkTitle = strings.TrimSpace(html.UnescapeString(m[1]))
+			if h := reLinkHref.FindStringSubmatch(block); h != nil {
+				msg.LinkHref = html.UnescapeString(h[1])
+			}
+			if d := reLinkDesc.FindStringSubmatch(block); d != nil {
+				msg.LinkDesc = cleanText(d[1])
+			}
+			if im := reLinkImage.FindStringSubmatch(block); im != nil {
+				msg.LinkImage = html.UnescapeString(im[1])
+			}
+		}
+		if m := reDocTitle.FindStringSubmatch(block); m != nil {
+			msg.Doc = strings.TrimSpace(html.UnescapeString(m[1]))
+			if e := reDocExtra.FindStringSubmatch(block); e != nil {
+				msg.DocSize = strings.TrimSpace(html.UnescapeString(e[1]))
+			}
 		}
 		out = append(out, msg)
 	}

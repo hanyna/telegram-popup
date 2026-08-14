@@ -156,7 +156,9 @@ func TestChannelsAPI(t *testing.T) {
 	if len(got.Channels) != 1 || got.Channels[0].Name != "aaa" {
 		t.Fatalf("bad list: %v", got.Channels)
 	}
-	if got.Channels[0].Title != "ערוץ אאא" || got.Channels[0].Photo != "https://cdn/p.jpg" {
+	// Since 6.3.1 the photo is the app's own stable proxy URL, never the
+	// rotting CDN address.
+	if got.Channels[0].Title != "ערוץ אאא" || got.Channels[0].Photo != "/api/avatar?channel=aaa" {
 		t.Fatalf("identity not served: %+v", got.Channels[0])
 	}
 
@@ -390,8 +392,8 @@ func TestFeedMediaHTMLVariants(t *testing.T) {
 	// GIF-like clip (no duration): silent looping preview, no controls.
 	gif := Message{ID: 2, Channel: "c", Video: "https://cdn/g.mp4"}
 	h = feedMediaHTML(gif)
-	if !strings.Contains(h, "autoplay muted loop") || strings.Contains(h, "controls") {
-		t.Fatalf("gif clip should loop silently: %s", h)
+	if !strings.Contains(h, "gifvid") || !strings.Contains(h, "muted loop") || strings.Contains(h, "controls") || strings.Contains(h, "autoplay") {
+		t.Fatalf("gif clip should be a visibility-played muted loop: %s", h)
 	}
 
 	// Long video (thumb only): click-to-embed player wiring.
@@ -599,10 +601,10 @@ func TestExtractVideoSrcFromRealEmbedMarkup(t *testing.T) {
 	page := `<div class="tgme_widget_message_video_player not_supported">
 	  <i class="tgme_widget_message_video_thumb" style="background-image:url('https://cdn4.telesco.pe/file/thumb.jpg')"></i>
 	  <div class="message_media_not_supported_label">This media is not supported in your browser</div>
-	  <a class="message_media_view_in_telegram" href="https://cdn4.telesco.pe/file/5e25d247a1.mp4?token=XEw14YJdj2iOLKlJvn0kJjOz&amp;size=big">VIEW IN TELEGRAM</a>
+	  <a class="message_media_view_in_telegram" href="https://cdn4.telesco.pe/file/5e25d247a1.mp4?token=FAKE-TEST-TOKEN-NOT-A-SECRET&amp;size=big">VIEW IN TELEGRAM</a>
 	</div>`
 	got := ExtractVideoSrc(page)
-	want := "https://cdn4.telesco.pe/file/5e25d247a1.mp4?token=XEw14YJdj2iOLKlJvn0kJjOz&size=big"
+	want := "https://cdn4.telesco.pe/file/5e25d247a1.mp4?token=FAKE-TEST-TOKEN-NOT-A-SECRET&size=big"
 	if got != want {
 		t.Fatalf("real markup not extracted:\n got: %q\nwant: %q", got, want)
 	}

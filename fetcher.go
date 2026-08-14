@@ -185,13 +185,15 @@ func (l *limiter) Statuses(channels []string) []ChannelStatus {
 	return rows
 }
 
-// AnyBlocked reports whether Telegram is currently throttling us at all — the
-// page turns this into a plain-language banner.
-func (l *limiter) AnyBlocked() bool {
+// AnyBlocked reports whether Telegram is currently throttling any of the
+// GIVEN channels — the page turns this into a plain-language banner. Scoped
+// to the live channel list so a channel that was removed while blocked can
+// never leave the banner stuck on forever.
+func (l *limiter) AnyBlocked(channels []string) bool {
 	l.stateMu.Lock()
 	defer l.stateMu.Unlock()
-	for _, st := range l.state {
-		if st.blocked {
+	for _, ch := range channels {
+		if st, ok := l.state[ch]; ok && st.blocked {
 			return true
 		}
 	}

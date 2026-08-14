@@ -21,6 +21,7 @@ type Config struct {
 	HistoryMessages  int      `json:"history_messages"`
 	NotifyOnFirstRun bool     `json:"notify_on_first_run"`
 	MutedChannels    []string `json:"muted_channels"`
+	PinnedChannels   []string `json:"pinned_channels"`
 	IncludeKeywords  []string `json:"include_keywords"`
 	ExcludeKeywords  []string `json:"exclude_keywords"`
 	SkipEmptyText    bool     `json:"skip_empty_text"`
@@ -43,6 +44,7 @@ func DefaultConfig() Config {
 		AppWindow:        true,
 		HistoryMessages:  60,
 		MutedChannels:    []string{},
+		PinnedChannels:   []string{},
 		NotifyOnFirstRun: false,
 		IncludeKeywords:  []string{},
 		ExcludeKeywords:  []string{},
