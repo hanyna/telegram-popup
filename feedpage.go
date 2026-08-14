@@ -638,6 +638,11 @@ const feedPage = `<!DOCTYPE html>
       </div>
     </div>
     <div id="chanlist"></div>
+    <div id="updrow" style="display:none;padding:10px 12px 0">
+      <button id="updbtn" style="width:100%;font:600 12.5px 'Segoe UI',sans-serif;color:#fff;border:none;border-radius:12px;padding:10px 0;cursor:pointer;background:linear-gradient(135deg,#31c48d,#149a6e);box-shadow:0 4px 14px rgba(20,154,110,0.35)">
+        ⬇ גרסה חדשה זמינה — לחץ לעדכון
+      </button>
+    </div>
     <div class="autostartrow" id="autostartrow" style="display:none">
       <label><input type="checkbox" id="autostartchk"> הפעל עם ווינדוס</label>
     </div>
@@ -744,6 +749,7 @@ const feedPage = `<!DOCTYPE html>
   var titleUnread = 0;
   var current = 'all';
   var channels = [];
+  var channelsLocked = false; // locked list: no add button, no remove ✕
   var unread = {};      // channel -> count
   var unreadFirst = {}; // channel -> key of the first message that arrived unseen
   var lastMsg = {};     // channel -> {ts, preview}
@@ -917,18 +923,20 @@ const feedPage = `<!DOCTYPE html>
       side.appendChild(tm); side.appendChild(bd);
       row.appendChild(side);
 
-      var x = document.createElement('div');
-      x.className = 'rowx';
-      x.textContent = '✕';
-      x.title = 'הסר ערוץ';
-      x.onclick = function (ev) {
-        ev.stopPropagation();
-        if (!confirm('להסיר את ' + (ch.title || '@' + ch.name) + '?')) return;
-        fetch('/api/channels?name=' + encodeURIComponent(ch.name), { method: 'DELETE' })
-          .then(function (r) { return r.json(); })
-          .then(function () { location.reload(); });
-      };
-      row.appendChild(x);
+      if (!channelsLocked) {
+        var x = document.createElement('div');
+        x.className = 'rowx';
+        x.textContent = '✕';
+        x.title = 'הסר ערוץ';
+        x.onclick = function (ev) {
+          ev.stopPropagation();
+          if (!confirm('להסיר את ' + (ch.title || '@' + ch.name) + '?')) return;
+          fetch('/api/channels?name=' + encodeURIComponent(ch.name), { method: 'DELETE' })
+            .then(function (r) { return r.json(); })
+            .then(function () { location.reload(); });
+        };
+        row.appendChild(x);
+      }
 
       var pin = document.createElement('div');
       pin.className = 'rowpin';
@@ -1519,6 +1527,11 @@ const feedPage = `<!DOCTYPE html>
   // Each message renders in isolation: one bad post can never blank the page.
   fetch('/api/channels').then(function (r) { return r.json(); }).then(function (d) {
     channels = d.channels || [];
+    channelsLocked = !!d.locked;
+    if (channelsLocked) {
+      var aw = document.querySelector('.addwrap');
+      if (aw) aw.style.display = 'none';
+    }
     renderSidebar();
     return fetch('/api/messages');
   }).then(function (r) { return r.json(); }).then(function (data) {
@@ -1778,6 +1791,67 @@ const feedPage = `<!DOCTYPE html>
       body: JSON.stringify({ theme: theme })
     }).catch(function () {});
   };
+
+  // ----- self-update --------------------------------------------------------
+  // The desktop app checks the user's GitHub repo; when a newer version was
+  // uploaded there, a green button appears. One click: download, swap,
+  // restart — and this tab reconnects to the new version by itself.
+  function checkUpdate() {
+    fetch('/api/update').then(function (r) { return r.json(); }).then(function (d) {
+      var row = document.getElementById('updrow');
+      if (!row) return;
+      if (d.supported && d.available) {
+        row.style.display = 'block';
+        document.getElementById('updbtn').textContent =
+          '⬇ גרסה ' + d.latest + ' זמינה — לחץ לעדכון';
+      } else {
+        row.style.display = 'none';
+      }
+    }).catch(function () {});
+  }
+  document.getElementById('updbtn').onclick = function () {
+    if (!confirm('לעדכן עכשיו? התוכנה תרד לכמה שניות ותעלה מחדש עם הגרסה החדשה.')) return;
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '⬇ מוריד ומעדכן…';
+    fetch('/api/update', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) {
+          btn.disabled = false;
+          checkUpdate();
+          toast(d.error);
+          return;
+        }
+        btn.textContent = '✓ מעדכן — הדף יתחבר מחדש לבד…';
+        // The app restarts; reload once the new version answers.
+        var tries = 0;
+        var probe = setInterval(function () {
+          tries++;
+          fetch('/api/settings').then(function () {
+            clearInterval(probe);
+            location.reload();
+          }).catch(function () {
+            if (tries > 40) clearInterval(probe); // ~2 min, give up quietly
+          });
+        }, 3000);
+      })
+      .catch(function () {
+        // Expected mid-swap: the server dies before answering. Probe & reload.
+        var tries = 0;
+        var probe = setInterval(function () {
+          tries++;
+          fetch('/api/settings').then(function () {
+            clearInterval(probe);
+            location.reload();
+          }).catch(function () {
+            if (tries > 40) clearInterval(probe);
+          });
+        }, 3000);
+      });
+  };
+  checkUpdate();
+  setInterval(checkUpdate, 6 * 3600 * 1000); // twice a day is plenty
 
   // ----- autostart ----------------------------------------------------------
   fetch('/api/autostart').then(function (r) { return r.json(); }).then(function (d) {

@@ -28,6 +28,13 @@ type Config struct {
 	Theme            string   `json:"theme"`
 	TelegramAppID    int      `json:"telegram_app_id"`
 	TelegramAppHash  string   `json:"telegram_app_hash"`
+	// UpdateURL is the raw-content base of the GitHub repo the desktop app
+	// checks for new versions (version.json + downloads/TelegramPopup-Update.zip).
+	UpdateURL string `json:"update_url"`
+	// AllowChannelEdit unlocks adding/removing channels from the page. The
+	// user asked for a LOCKED list, so the default (a missing field) is
+	// locked; set to true in config.json to bring the +/✕ buttons back.
+	AllowChannelEdit bool `json:"allow_channel_edit"`
 }
 
 func DefaultConfig() Config {
@@ -50,6 +57,7 @@ func DefaultConfig() Config {
 		ExcludeKeywords:  []string{},
 		SkipEmptyText:    true,
 		Theme:            "dark",
+		UpdateURL:        defaultUpdateURL,
 	}
 }
 
@@ -109,8 +117,14 @@ func LoadConfig(path string) (Config, error) {
 	if cfg.Theme != "light" {
 		cfg.Theme = "dark"
 	}
+	if strings.TrimSpace(cfg.UpdateURL) == "" {
+		cfg.UpdateURL = defaultUpdateURL
+	}
 	return cfg, nil
 }
+
+// defaultUpdateURL points at the user's public repo (raw content).
+const defaultUpdateURL = "https://raw.githubusercontent.com/hanyna/telegram-popup/main"
 
 // normalizeChannel accepts anything the user is likely to paste: a bare
 // username, @username, t.me/username, or the full https://t.me/s/username URL.

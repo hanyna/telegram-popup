@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "6.4"
+const version = "6.6"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -323,37 +323,42 @@ func main() {
 			return msgs, err
 		}
 		feed.ListChannels = channels.list
-		feed.AddChannel = func(raw string) (string, error) {
-			name := normalizeChannel(raw)
-			if name == "" {
-				return "", errors.New("שם ערוץ ריק")
+		// The channel list is LOCKED by request: add/remove hooks are wired
+		// only when the config explicitly allows editing. Without them the
+		// APIs refuse and the page hides the +/✕ buttons.
+		if cfg.AllowChannelEdit {
+			feed.AddChannel = func(raw string) (string, error) {
+				name := normalizeChannel(raw)
+				if name == "" {
+					return "", errors.New("שם ערוץ ריק")
+				}
+				msgs, info, fErr := fetchChannel(name)
+				if fErr != nil {
+					return "", errors.New("לא הצלחתי להגיע לערוץ — בדוק את השם")
+				}
+				if len(msgs) == 0 {
+					return "", errors.New("הערוץ לא ציבורי או שאין בו הודעות גלויות")
+				}
+				if !channels.add(name) {
+					return "", errors.New("הערוץ כבר ברשימה")
+				}
+				feed.SetChannelInfo(name, info)
+				persist()
+				logLine("ערוץ נוסף מהדף: @%s", name)
+				poke()
+				return name, nil
 			}
-			msgs, info, fErr := fetchChannel(name)
-			if fErr != nil {
-				return "", errors.New("לא הצלחתי להגיע לערוץ — בדוק את השם")
+			feed.RemoveChannel = func(name string) error {
+				if !channels.remove(name) {
+					return errors.New("הערוץ לא נמצא ברשימה")
+				}
+				if store != nil {
+					store.RemoveChannel(name)
+				}
+				persist()
+				logLine("ערוץ הוסר מהדף: @%s", name)
+				return nil
 			}
-			if len(msgs) == 0 {
-				return "", errors.New("הערוץ לא ציבורי או שאין בו הודעות גלויות")
-			}
-			if !channels.add(name) {
-				return "", errors.New("הערוץ כבר ברשימה")
-			}
-			feed.SetChannelInfo(name, info)
-			persist()
-			logLine("ערוץ נוסף מהדף: @%s", name)
-			poke()
-			return name, nil
-		}
-		feed.RemoveChannel = func(name string) error {
-			if !channels.remove(name) {
-				return errors.New("הערוץ לא נמצא ברשימה")
-			}
-			if store != nil {
-				store.RemoveChannel(name)
-			}
-			persist()
-			logLine("ערוץ הוסר מהדף: @%s", name)
-			return nil
 		}
 		if store != nil {
 			feed.Search = store.Search
@@ -398,6 +403,22 @@ func main() {
 			settings.setKeywords(inc, exc)
 			persist()
 			logLine("מילות מפתח עודכנו מהדף: %d לכלול, %d להחריג", len(inc), len(exc))
+		}
+		// One-click self-update from the user's GitHub repo — desktop only
+		// (the cloud copy is redeployed by Render on every upload).
+		if !inCloud() && cfg.UpdateURL != "" {
+			feed.CheckUpdate = func() (string, error) {
+				return fetchLatestVersion(cfg.UpdateURL)
+			}
+			feed.ApplyUpdate = func() error {
+				logLine("עדכון עצמי: מוריד גרסה חדשה מהמאגר…")
+				if err := downloadUpdate(cfg.UpdateURL, dir); err != nil {
+					logLine("עדכון עצמי נכשל: %v", err)
+					return err
+				}
+				logLine("עדכון עצמי: הבינארי ירד ואומת — מפעיל מחדש")
+				return applyUpdate(dir)
+			}
 		}
 		feed.GetSettings = settings.get
 		feed.GetTheme = settings.getTheme

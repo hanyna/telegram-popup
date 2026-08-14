@@ -73,6 +73,10 @@ type Feed struct {
 	SetAutostart  func(on bool) error
 	GetTheme      func() string
 	SetTheme      func(theme string)
+	// Self-update hooks (desktop only): check the repo for a newer version,
+	// and download+apply it. Nil in the cloud (Render updates itself).
+	CheckUpdate func() (latest string, err error)
+	ApplyUpdate func() error
 
 	videoMu    sync.Mutex
 	videoCache map[string]string    // "channel/id" -> direct mp4 URL
@@ -296,6 +300,7 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/status", f.handleStatus)
 	mux.HandleFunc("/api/goto", f.handleGoto)
 	mux.HandleFunc("/api/avatar", f.handleAvatar)
+	mux.HandleFunc("/api/update", f.handleUpdate)
 
 	bind := f.BindAddr
 	if bind == "" {
@@ -402,7 +407,11 @@ func (f *Feed) handleChannels(w http.ResponseWriter, r *http.Request) {
 			}
 			entries = append(entries, e)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"channels": entries})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"channels": entries,
+			// locked=true → the page hides "+ הוסף ערוץ" and the ✕ buttons.
+			"locked": f.AddChannel == nil && f.RemoveChannel == nil,
+		})
 
 	case http.MethodPost:
 		if f.AddChannel == nil {
@@ -650,6 +659,47 @@ func (f *Feed) handleAvatar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Cache-Control", "public, max-age=21600")
 	_, _ = w.Write(data)
+}
+
+// handleUpdate: GET checks the GitHub repo for a newer release; POST
+// downloads it and restarts the app with the new binary. The page shows a
+// one-click update pill when GET reports a newer version.
+func (f *Feed) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	switch r.Method {
+	case http.MethodGet:
+		if f.CheckUpdate == nil {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"current": version, "available": false, "supported": false,
+			})
+			return
+		}
+		latest, err := f.CheckUpdate()
+		if err != nil {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"current": version, "available": false, "supported": true,
+				"error": "בדיקת העדכון נכשלה — נסה שוב מאוחר יותר",
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"current": version, "latest": latest, "supported": true,
+			"available": compareVersions(latest, version) > 0,
+		})
+	case http.MethodPost:
+		if f.ApplyUpdate == nil {
+			http.Error(w, `{"error":"unsupported"}`, http.StatusNotImplemented)
+			return
+		}
+		if err := f.ApplyUpdate(); err != nil {
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		// The app is about to be stopped and swapped by the updater script.
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "restarting": true})
+	default:
+		http.Error(w, `{"error":"method"}`, http.StatusMethodNotAllowed)
+	}
 }
 
 // handleGoto is what a popup click calls: every open tab jumps to the given

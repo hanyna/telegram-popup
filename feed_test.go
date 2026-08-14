@@ -695,3 +695,71 @@ func TestBigVideoAccountFallback(t *testing.T) {
 		t.Fatalf("range serve of local file broken: status=%d body=%q", resp.StatusCode, string(body))
 	}
 }
+
+// The locked channel list: no hooks wired → APIs refuse, page told to hide.
+func TestLockedChannelList(t *testing.T) {
+	f := NewFeed()
+	f.ListChannels = func() []string { return []string{"aaa"} }
+	// No AddChannel/RemoveChannel hooks — the locked configuration.
+	url, err := f.Start(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(url + "/api/channels")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&got)
+	resp.Body.Close()
+	if got["locked"] != true {
+		t.Fatal("locked list must be reported to the page")
+	}
+
+	// POST (add) must be refused.
+	resp, _ = http.Post(url+"/api/channels", "application/json", strings.NewReader(`{"channel":"newone"}`))
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("locked add: want 501, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// DELETE must be refused.
+	req, _ := http.NewRequest("DELETE", url+"/api/channels?name=aaa", nil)
+	resp, _ = http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("locked delete: want 501, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestUnlockedListReportsUnlocked(t *testing.T) {
+	f := NewFeed()
+	f.ListChannels = func() []string { return []string{"aaa"} }
+	f.AddChannel = func(n string) (string, error) { return n, nil }
+	f.RemoveChannel = func(n string) error { return nil }
+	url, _ := f.Start(0)
+	resp, err := http.Get(url + "/api/channels")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var got map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&got)
+	if got["locked"] != false {
+		t.Fatal("editable list must report locked=false")
+	}
+}
+
+func TestConfigDefaultsToLockedChannels(t *testing.T) {
+	dir := t.TempDir()
+	p := dir + "/config.json"
+	_ = os.WriteFile(p, []byte(`{"channels":["a"],"poll_seconds":30}`), 0o644)
+	cfg, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AllowChannelEdit {
+		t.Fatal("a config without the field must default to LOCKED (user request)")
+	}
+}

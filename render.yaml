@@ -11,6 +11,6 @@ services:
       - key: TGPOPUP_KEY
         generateValue: true # Render invents a strong access key — copy it from the Environment tab
       - key: TGPOPUP_CHANNELS
-        value: "elisha_yered,hakolhayehudi,realelchangr,ayeletlash,SamariaUpdates,Moshepargod,tzviye,mashekoreIL,regavim,nilchamim,hargavim,hatzhalhyosh"
+        value: "elisha_yered,hakolhayehudi,realelchangr,ayeletlash,SamariaUpdates,nilchamim,hatzhalhyosh"
       - key: TZ
         value: "Asia/Jerusalem"
