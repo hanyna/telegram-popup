@@ -31,6 +31,7 @@ type FeedItem struct {
 	TS      int64  `json:"ts"`      // unix seconds, for cross-channel ordering
 	Preview string `json:"preview"` // one-line text for the sidebar
 	HTML    string `json:"html"`
+	Text    string `json:"text"` // full plain text, untruncated, tags stripped — for external consumers (e.g. TTS/IVR integrations)
 }
 
 type Feed struct {
@@ -181,7 +182,13 @@ func toItem(m Message) FeedItem {
 	if r := []rune(prev); len(r) > 80 {
 		prev = string(r[:80]) + "…"
 	}
-	return FeedItem{ID: m.ID, Channel: m.Channel, Key: itemKey(m), TS: ts, Preview: prev, HTML: renderFeedItem(m)}
+	fullText := strings.TrimSpace(m.Text)
+	if fullText == "" {
+		// Fall back to the same non-text description used for the preview
+		// (e.g. "תמונה", "סרטון"), just without the icon prefix or truncation.
+		fullText = strings.TrimSpace(strings.ReplaceAll(prev, icon+" ", ""))
+	}
+	return FeedItem{ID: m.ID, Channel: m.Channel, Key: itemKey(m), TS: ts, Preview: prev, HTML: renderFeedItem(m), Text: fullText}
 }
 
 func (f *Feed) sortLocked() {
