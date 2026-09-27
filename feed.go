@@ -290,11 +290,11 @@ func (f *Feed) trimLocked() {
 // Start binds the local server. Returns the URL it serves on.
 func (f *Feed) Start(port int) (string, error) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", f.handlePage)
-	mux.HandleFunc("/api/messages", f.handleMessages)
-	mux.HandleFunc("/api/older", f.handleOlder)
+	mux.HandleFunc("/", lean(f.handlePage))
+	mux.HandleFunc("/api/messages", lean(f.handleMessages))
+	mux.HandleFunc("/api/older", lean(f.handleOlder))
 	mux.HandleFunc("/api/stream", f.handleStream)
-	mux.HandleFunc("/api/channels", f.handleChannels)
+	mux.HandleFunc("/api/channels", lean(f.handleChannels))
 	mux.HandleFunc("/api/settings", f.handleSettings)
 	mux.HandleFunc("/api/mute", f.handleMute)
 	mux.HandleFunc("/api/pin", f.handlePin)
@@ -302,9 +302,9 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/refresh", f.handleRefresh)
 	mux.HandleFunc("/api/video", f.handleVideo)
 	mux.HandleFunc("/api/media", f.handleMedia)
-	mux.HandleFunc("/api/search", f.handleSearch)
+	mux.HandleFunc("/api/search", lean(f.handleSearch))
 	mux.HandleFunc("/api/autostart", f.handleAutostart)
-	mux.HandleFunc("/api/status", f.handleStatus)
+	mux.HandleFunc("/api/status", lean(f.handleStatus))
 	mux.HandleFunc("/api/goto", f.handleGoto)
 	mux.HandleFunc("/api/avatar", f.handleAvatar)
 	mux.HandleFunc("/api/update", f.handleUpdate)
@@ -864,6 +864,13 @@ func (f *Feed) handleMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	src, err := f.resolveCached(channel, id)
+	if err == nil && r.URL.Query().Get("redirect") == "1" {
+		// חיסכון ברוחב פס: לקוח שיודע להוריד בעצמו (הגשר לימות) מקבל את
+		// הכתובת הישירה של טלגרם, והסרטון לא עובר דרך השרת הזה.
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, src, http.StatusFound)
+		return
+	}
 	if err != nil {
 		// Anonymous paths exhausted — try the authenticated account download
 		// (large videos). Success streams the local file with seeking.
