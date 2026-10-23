@@ -120,6 +120,7 @@ func TestPageHandlesChaninfoAndAvatarReferrer(t *testing.T) {
 
 // The avatar proxy: one stable URL per channel, bytes cached server-side.
 func TestAvatarProxyCachesAndServes(t *testing.T) {
+	t.Setenv("TGPOPUP_MEDIA_HOSTS", "127.0.0.1") // test upstream is not telegram
 	var cdnHits int
 	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cdnHits++

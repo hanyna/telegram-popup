@@ -465,6 +465,7 @@ func TestExtractVideoSrc(t *testing.T) {
 
 // The streaming proxy must pass Range through so the player can seek.
 func TestMediaProxyStreamsWithRange(t *testing.T) {
+	t.Setenv("TGPOPUP_MEDIA_HOSTS", "127.0.0.1") // test upstream is not telegram
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("User-Agent") == "" {
 			t.Error("proxy request without browser UA")
@@ -612,6 +613,7 @@ func TestExtractVideoSrcFromRealEmbedMarkup(t *testing.T) {
 
 // A stale cached CDN token must be refreshed transparently by the proxy.
 func TestMediaProxyRefreshesExpiredToken(t *testing.T) {
+	t.Setenv("TGPOPUP_MEDIA_HOSTS", "127.0.0.1") // test upstream is not telegram
 	stale := true
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.RawQuery, "token=old") {

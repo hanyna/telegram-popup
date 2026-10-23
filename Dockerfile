@@ -13,7 +13,6 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/tgpopup .
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /out/tgpopup /app/tgpopup
-COPY --from=build /src/dist/config.json /app/config.json
 WORKDIR /app
 ENV TZ=Asia/Jerusalem
 # PORT is provided by the platform (Render sets it automatically).

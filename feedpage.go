@@ -11,8 +11,22 @@ const feedPage = `<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f1320" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#dfe6f0" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ערוץ חי">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>ערוץ חי</title>
+<script>
+  // Theme before first paint: no dark flash for light-mode users (and the
+  // other way round). The server's saved theme still wins once it loads.
+  try { if (localStorage.getItem('tgpopup-theme') === 'light') document.documentElement.classList.add('light'); } catch (e) {}
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2337aee2'/%3E%3Cstop offset='1' stop-color='%2331c48d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='url(%23g)'/%3E%3Cpath d='M18 20h28a4 4 0 014 4v12a4 4 0 01-4 4H31l-8 7v-7h-5a4 4 0 01-4-4V24a4 4 0 014-4z' fill='%23fff'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -25,7 +39,7 @@ const feedPage = `<!DOCTYPE html>
     --headbg:rgba(15,19,32,0.85);
     --markbg:rgba(55,174,226,0.35);
   }
-  body.light {
+  body.light, html.light body {
     --bg:#dfe6f0; --bg2:#d5dde9;
     --panel:#ffffff; --panel2:#f7f9fd;
     --bubble:#ffffff; --bubble2:#fbfdff;
@@ -49,7 +63,11 @@ const feedPage = `<!DOCTYPE html>
   ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.18); }
   ::-webkit-scrollbar-track { background:transparent; }
 
-  #app { display:flex; height:100vh; }
+  #app { display:flex; height:100vh; height:100dvh; }
+  /* Reduced motion: no entrance animations, no spinners spinning. */
+  @media (prefers-reduced-motion: reduce) {
+    .msg, #jump, #toast, .modal, #lightbox img { animation:none !important; }
+  }
 
   /* ===== sidebar ========================================================= */
   #side {
@@ -122,6 +140,14 @@ const feedPage = `<!DOCTYPE html>
     color:#fff; font-size:11px; font-weight:700;
   }
   .badge.show { display:flex; }
+  .avawrap { position:relative; flex:none; }
+  .avabadge {
+    position:absolute; top:-3px; left:-3px; display:none;
+    min-width:18px; height:18px; padding:0 5px; border-radius:99px;
+    background:linear-gradient(135deg,#37aee2,#1e88d2); color:#fff;
+    font-size:10.5px; font-weight:700; align-items:center; justify-content:center;
+    border:2px solid var(--panel);
+  }
   .rowx {
     position:absolute; top:6px; left:6px;
     width:18px; height:18px; line-height:16px; text-align:center;
@@ -175,15 +201,30 @@ const feedPage = `<!DOCTYPE html>
     display:flex; align-items:center; justify-content:center;
     color:#fff; font-weight:700; font-size:15px; }
   .headmid { flex:1; min-width:0; }
-  #headtitle { font-size:14.5px; font-weight:700; }
-  #headsub { font-size:11.5px; color:var(--muted); margin-top:1px; }
-  #headlink {
-    font-size:12.5px; color:var(--accent); text-decoration:none;
-    border:1px solid rgba(55,174,226,0.35); border-radius:99px;
-    padding:6px 14px; flex:none;
-    transition:background 0.12s;
+  #headtitle { font-size:14.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #headsub { font-size:11.5px; color:var(--muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .headbtns { display:flex; gap:8px; flex:none; }
+  #morebtn { display:none; }
+  #moremenu {
+    position:absolute; top:58px; left:16px; z-index:30; display:none;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 14px 40px rgba(0,0,0,0.45); padding:6px; min-width:210px;
   }
-  #headlink:hover { background:rgba(55,174,226,0.12); }
+  #moremenu.open { display:block; }
+  .mitem {
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    border-radius:10px; font-size:13.5px; cursor:pointer; user-select:none;
+  }
+  .mitem:hover { background:rgba(55,174,226,0.12); }
+  .mitem .mi { width:22px; text-align:center; font-size:16px; }
+  #installrow { display:none; padding:10px 12px 0; }
+  #installbtn {
+    width:100%; font:inherit; font-size:12.5px; font-weight:600; color:var(--fg);
+    border:1px solid rgba(55,174,226,0.4); border-radius:12px; padding:9px 0;
+    background:rgba(55,174,226,0.10); cursor:pointer;
+  }
+  #iosinstall { font-size:11.5px; color:var(--muted); line-height:1.5; }
+  #wakehint { display:none; text-align:center; color:var(--muted); font-size:13px; padding:8px 0 16px; line-height:1.6; }
 
   .iconbtn {
     width:36px; height:36px; border-radius:50%; flex:none;
@@ -208,7 +249,7 @@ const feedPage = `<!DOCTYPE html>
   #searchinput {
     flex:1; background:var(--bg); color:var(--fg);
     border:1px solid var(--line); border-radius:99px;
-    font:inherit; font-size:14px; padding:9px 18px;
+    font:inherit; font-size:16px; padding:9px 18px; min-width:0;
     outline:none; transition:border-color 0.15s;
   }
   #searchinput:focus { border-color:rgba(55,174,226,0.55); box-shadow:0 0 0 3px rgba(55,174,226,0.10); }
@@ -329,10 +370,10 @@ const feedPage = `<!DOCTYPE html>
   .msgchan { color:var(--accent2); font-weight:700; cursor:pointer; }
   .msgchan:hover { text-decoration:underline; }
   body.single .msgchan { display:none; }
-  .msgtime { color:var(--dim); text-decoration:none; }
-  .msgtime:hover { color:var(--accent); }
+  .msgtime { color:var(--muted); direction:ltr; }
 
-  .msgtext { font-size:14px; line-height:1.6; word-wrap:break-word; }
+  .msgtext { font-size:14px; line-height:1.6; word-wrap:break-word; overflow-wrap:anywhere; unicode-bidi:plaintext; }
+  .rowprev, .linktitle, .linkdesc, .docname, .pollq, .pollmeta span { unicode-bidi:plaintext; }
   .msgtext a { color:#5cb8ff; text-decoration:none; border-bottom:1px solid rgba(92,184,255,0.35); }
 
   .photo { margin:2px 0 8px; padding:0; }
@@ -437,7 +478,7 @@ const feedPage = `<!DOCTYPE html>
   .modal input {
     width:100%; background:var(--bg); color:var(--fg);
     border:1px solid var(--line); border-radius:11px;
-    font:inherit; font-size:14px; padding:11px 14px;
+    font:inherit; font-size:16px; padding:11px 14px;
     direction:ltr; text-align:left; outline:none;
     transition:border-color 0.15s;
   }
@@ -616,14 +657,38 @@ const feedPage = `<!DOCTYPE html>
   body.light .durbadge { background:rgba(10,13,22,0.65); }
   body.light #statusbar { background:rgba(224,150,10,0.12); border-bottom-color:rgba(200,130,0,0.3); }
   body.light #statusbar.calm { background:rgba(30,136,210,0.08); border-bottom-color:rgba(30,136,210,0.25); }
+  body.light #moremenu { box-shadow:0 14px 40px rgba(25,35,70,0.25); }
+  body.light .avabadge { border-color:#fff; }
+  body.light .spin { border-color:rgba(20,30,60,0.15); border-top-color:var(--accent); }
 
   @media (max-width:680px) {
-    #side { width:76px; }
+    #side { width:68px; }
     .rowmid, .rowside, .appmeta { display:none; }
-    .row { justify-content:center; padding:9px 4px; }
-    .sidehead { justify-content:center; }
-    #addbtn { font-size:18px; padding:8px 0; }
+    .row { justify-content:center; padding:8px 2px; }
+    .row.active::before { right:-2px; }
+    .sidehead { justify-content:center; padding:12px 6px 10px; }
+    .avabadge.show { display:flex; }
+    #addbtn { font-size:20px; padding:6px 0; }
     #addbtn .txt { display:none; }
+    #addbtn .plus { display:inline !important; }
+    #chathead { padding:8px 10px; gap:7px; }
+    #headava { width:32px; height:32px; font-size:13px; }
+    #headtitle { font-size:13.5px; }
+    #headsub { font-size:10.5px; }
+    .headbtns { gap:5px; }
+    .headbtns .iconbtn { width:32px; height:32px; font-size:14px; }
+    #refreshbtn { font-size:17px; }
+    #chat { padding:12px 10px 20px; }
+    .msg { max-width:96%; }
+    .headbtns .iconbtn { display:none !important; }
+    .headbtns .iconbtn.keep, #morebtn { display:flex !important; }
+    #searchbar { padding:8px 10px; }
+    #installbtn { font-size:0; padding:8px 0; }
+    #installbtn::before { content:'📲'; font-size:18px; }
+    #iosinstall { display:none; }
+    #jump, #downbtn { bottom:calc(16px + env(safe-area-inset-bottom)); }
+    .addwrap { padding:8px 8px calc(10px + env(safe-area-inset-bottom)); }
+    .rowpin { opacity:0 !important; pointer-events:none; }
   }
 </style>
 </head>
@@ -643,10 +708,14 @@ const feedPage = `<!DOCTYPE html>
         ⬇ גרסה חדשה זמינה — לחץ לעדכון
       </button>
     </div>
+    <div id="installrow">
+      <button id="installbtn" title="התקן כאפליקציה במסך הבית">📲 התקן כאפליקציה</button>
+      <div id="iosinstall" style="display:none"></div>
+    </div>
     <div class="autostartrow" id="autostartrow" style="display:none">
       <label><input type="checkbox" id="autostartchk"> הפעל עם ווינדוס</label>
     </div>
-    <div class="addwrap"><button id="addbtn"><span class="txt">+ הוסף ערוץ</span><span style="display:none">+</span></button></div>
+    <div class="addwrap"><button id="addbtn"><span class="txt">+ הוסף ערוץ</span><span class="plus" style="display:none">+</span></button></div>
   </aside>
 
   <main id="main">
@@ -656,13 +725,18 @@ const feedPage = `<!DOCTYPE html>
         <div id="headtitle">כל הערוצים</div>
         <div id="headsub"></div>
       </div>
-      <div class="iconbtn" id="kwbtn" title="מילות מפתח להתראות">⚙️</div>
-      <div class="iconbtn" id="themebtn" title="מצב בהיר/כהה">🌓</div>
-      <div class="iconbtn" id="searchbtn" title="חיפוש בארכיון">🔍</div>
-      <div class="iconbtn" id="refreshbtn" title="עדכן עכשיו">⟳</div>
-      <div class="iconbtn" id="tglmute" style="display:none">🔔</div>
-      <div class="iconbtn" id="tglpopups" title="חלוניות קופצות (כל הערוצים)">🔔</div>
-      <div class="iconbtn" id="tglsound" title="צליל התראה">🔊</div>
+      <div class="headbtns">
+        <div class="iconbtn" id="kwbtn" role="button" tabindex="0" title="מילות מפתח להתראות" aria-label="מילות מפתח להתראות">⚙️</div>
+        <div class="iconbtn" id="themebtn" role="button" tabindex="0" title="מצב בהיר/כהה" aria-label="מצב בהיר/כהה">🌓</div>
+        <div class="iconbtn keep" id="searchbtn" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון">🔍</div>
+        <div class="iconbtn keep" id="refreshbtn" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו">⟳</div>
+        <div class="iconbtn" id="tglmute" role="button" tabindex="0" style="display:none">🔔</div>
+        <div class="iconbtn" id="tglpopups" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות">🖥️</div>
+        <div class="iconbtn" id="tglsound" role="button" tabindex="0" title="צליל התראה" aria-label="צליל התראה">🔊</div>
+        <div class="iconbtn keep" id="tglnotif" role="button" tabindex="0" style="display:none" title="התראות בדפדפן" aria-label="התראות בדפדפן">🔔</div>
+        <div class="iconbtn" id="morebtn" role="button" tabindex="0" title="עוד" aria-label="עוד">⋯</div>
+      </div>
+      <div id="moremenu" role="menu"></div>
     </div>
     <div id="searchbar">
       <input id="searchinput" placeholder="חיפוש בכל ההיסטוריה שנשמרה…" spellcheck="false">
@@ -679,6 +753,7 @@ const feedPage = `<!DOCTYPE html>
     <div id="statuspanel" style="display:none"></div>
     <div id="chat">
       <div id="topload"><span class="spin"></span>טוען הודעות ישנות…</div>
+      <div id="wakehint"></div>
       <div id="msgs"></div>
       <div id="results" style="display:none">
         <div id="resultsmeta"></div>
@@ -687,7 +762,7 @@ const feedPage = `<!DOCTYPE html>
     </div>
     <button id="jump">⬇ הודעות חדשות <span class="cnt" id="jumpcnt">1</span></button>
     <button id="downbtn" title="גלול לתחתית">⌄</button>
-    <div id="toast"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
   </main>
 </div>
 
@@ -699,8 +774,8 @@ const feedPage = `<!DOCTYPE html>
 </div>
 
 <div class="modal-back" id="kwback">
-  <div class="modal">
-    <h3>מילות מפתח להתראות</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="kwtitle">
+    <h3 id="kwtitle">מילות מפתח להתראות</h3>
     <p>שולט רק על החלוניות הקופצות — הדף תמיד מציג הכל.<br>
        הפרד מילים בפסיק או בשורה חדשה. השאר ריק = הכל קופץ.</p>
     <div style="font-size:12px;color:var(--muted);margin-bottom:5px">הקפץ רק הודעות שמכילות:</div>
@@ -716,10 +791,10 @@ const feedPage = `<!DOCTYPE html>
 </div>
 
 <div class="modal-back" id="modalback">
-  <div class="modal">
-    <h3>הוספת ערוץ</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addtitle">
+    <h3 id="addtitle">הוספת ערוץ</h3>
     <p>הדבק שם משתמש או קישור של ערוץ טלגרם ציבורי.<br>לדוגמה: durov או https://t.me/durov</p>
-    <input id="chaninput" placeholder="@channel" spellcheck="false">
+    <input id="chaninput" placeholder="@channel" spellcheck="false" autocapitalize="off" autocorrect="off">
     <div class="err" id="chanerr"></div>
     <div class="btns">
       <button class="cancel" id="chancancel">ביטול</button>
@@ -760,6 +835,9 @@ const feedPage = `<!DOCTYPE html>
   var chat = document.getElementById('chat');
   var msgs = document.getElementById('msgs');
   var scrollPos = {};  // channel -> saved scroll position when switching away
+  var lastSeq = 0;     // newest feed sequence number this tab has seen
+  var isCloud = false; // set from /api/settings: no desktop features online
+  var booted = false;  // first /api/messages answered
 
   // Loading skeleton: shimmering placeholder bubbles instead of a blank pane
   // while the first batch loads.
@@ -828,7 +906,15 @@ const feedPage = `<!DOCTYPE html>
     if (!ts) return '';
     var d = new Date(ts * 1000), now = new Date();
     if (d.toDateString() === now.toDateString()) return fmtTime(ts);
-    return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
+    return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2);
+  }
+  // Bubble stamp, rendered HERE in the viewer's own time zone. The server
+  // used to format it, which meant UTC when it runs in the cloud.
+  function fmtStamp(ts) {
+    if (!ts) return '';
+    var d = new Date(ts * 1000), now = new Date();
+    if (d.toDateString() === now.toDateString()) return fmtTime(ts);
+    return fmtRowTime(ts) + ' ' + fmtTime(ts);
   }
   function dayKey(ts) { return new Date(ts * 1000).toDateString(); }
   function dayLabel(ts) {
@@ -853,7 +939,10 @@ const feedPage = `<!DOCTYPE html>
     allAva.className = 'ava';
     allAva.style.background = 'linear-gradient(135deg,#37aee2,#1e88d2)';
     allAva.textContent = '✦';
-    allRow.appendChild(allAva);
+    var allWrap = document.createElement('div');
+    allWrap.className = 'avawrap';
+    allWrap.appendChild(allAva);
+    allRow.appendChild(allWrap);
     var allMid = document.createElement('div');
     allMid.className = 'rowmid';
     allMid.innerHTML = '<div class="rowname">כל הערוצים</div><div class="rowprev">ציר זמן ממוזג</div>';
@@ -870,8 +959,15 @@ const feedPage = `<!DOCTYPE html>
       allBd.textContent = totalUnread;
       allSide.appendChild(allBd);
       allRow.appendChild(allSide);
+      var allAb = document.createElement('div');
+      allAb.className = 'avabadge show';
+      allAb.textContent = totalUnread;
+      allWrap.appendChild(allAb);
     }
+    allRow.setAttribute('role', 'button');
+    allRow.setAttribute('tabindex', '0');
     allRow.onclick = function () { select('all'); };
+    allRow.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select('all'); } };
     list.appendChild(allRow);
 
     // Pinned channels float to the top; inside each group, recency wins.
@@ -887,7 +983,17 @@ const feedPage = `<!DOCTYPE html>
       var ava = document.createElement('div');
       ava.className = 'ava';
       avaStyle(ava, ch);
-      row.appendChild(ava);
+      var wrap = document.createElement('div');
+      wrap.className = 'avawrap';
+      wrap.appendChild(ava);
+      if (unread[ch.name]) {
+        // Narrow layout hides the text columns — the count rides the avatar.
+        var ab = document.createElement('div');
+        ab.className = 'avabadge show';
+        ab.textContent = unread[ch.name];
+        wrap.appendChild(ab);
+      }
+      row.appendChild(wrap);
 
       var mid = document.createElement('div');
       mid.className = 'rowmid';
@@ -958,7 +1064,10 @@ const feedPage = `<!DOCTYPE html>
       };
       row.appendChild(pin);
 
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
       row.onclick = function () { select(ch.name); };
+      row.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(ch.name); } };
       list.appendChild(row);
     });
   }
@@ -989,7 +1098,7 @@ const feedPage = `<!DOCTYPE html>
   }
 
   // Channel name on a bubble filters to that channel — nothing opens Telegram.
-  msgs.addEventListener('click', function (ev) {
+  chat.addEventListener('click', function (ev) {
     var chanTag = ev.target.closest ? ev.target.closest('.msgchan') : null;
     if (chanTag) {
       var c = chanTag.getAttribute('data-chan');
@@ -1117,6 +1226,9 @@ const feedPage = `<!DOCTYPE html>
     var node = holder.querySelector ? holder.querySelector('.msg') : holder.firstElementChild;
     if (!node) { return null; }
     node.setAttribute('data-ts', it.ts);
+    var tm = node.querySelector('.msgtime');
+    if (tm && it.ts) { tm.textContent = fmtStamp(it.ts); tm.title = new Date(it.ts * 1000).toLocaleString('he-IL'); }
+    if (it.seq && it.seq > lastSeq) lastSeq = it.seq;
     noteItem(it);
     if (current !== 'all' && it.channel !== current) node.classList.add('hidden');
     // Images fade in as they load instead of popping.
@@ -1217,10 +1329,32 @@ const feedPage = `<!DOCTYPE html>
     t.parentNode.insertBefore(b, t.nextSibling);
   }
 
+  // Insert by time, not blindly at the end: after a restart, a resync or a
+  // replay, items can arrive out of order. The common case (newest) is one
+  // comparison and an append.
+  function insertOrdered(n) {
+    var ts = parseInt(n.getAttribute('data-ts') || '0', 10);
+    var id = parseInt((n.id || '').replace(/^.*_/, ''), 10) || 0;
+    var prev = msgs.lastElementChild;
+    while (prev && (prev.classList.contains('datesep') || prev.classList.contains('unreadline') || prev.id === 'emptystate' || prev.hasAttribute('data-skel'))) prev = prev.previousElementSibling;
+    if (!prev) { msgs.appendChild(n); return; }
+    var guard = 0;
+    while (prev && guard++ < 4000) {
+      if (!prev.classList.contains('msg')) { prev = prev.previousElementSibling; continue; }
+      var pts = parseInt(prev.getAttribute('data-ts') || '0', 10);
+      var pid = parseInt((prev.id || '').replace(/^.*_/, ''), 10) || 0;
+      if (pts < ts || (pts === ts && pid <= id)) break;
+      prev = prev.previousElementSibling;
+    }
+    if (!prev) msgs.insertBefore(n, msgs.firstChild);
+    else if (prev.nextSibling) msgs.insertBefore(n, prev.nextSibling);
+    else msgs.appendChild(n);
+  }
+
   function insertNodeBottom(it) {
     var n = makeNode(it);
     if (!n) return null;
-    msgs.appendChild(n);
+    insertOrdered(n);
     applyClamp(n);
     return n;
   }
@@ -1234,7 +1368,7 @@ const feedPage = `<!DOCTYPE html>
   // into a wall of overlapping sound ("the videos open by themselves" — the
   // user diagnosed it exactly). Only muted GIF-like previews (autoplay attr)
   // resume; everything else just gets a working source and WAITS for a click.
-  msgs.addEventListener('error', function (ev) {
+  chat.addEventListener('error', function (ev) {
     var v = ev.target;
     if (!v || v.tagName !== 'VIDEO') return;
     var proxy = v.getAttribute('data-proxy');
@@ -1256,7 +1390,7 @@ const feedPage = `<!DOCTYPE html>
   // Long videos: clicking the preview asks OUR server for the direct video
   // file and plays it in the page's own player. Fallback chain, all
   // automatic: direct CDN → streaming through the app → clear message.
-  msgs.addEventListener('click', function (ev) {
+  chat.addEventListener('click', function (ev) {
     var wrap = ev.target.closest ? ev.target.closest('.embedwrap') : null;
     if (!wrap || wrap.getAttribute('data-loading')) return;
     var post = wrap.getAttribute('data-embed');
@@ -1349,7 +1483,7 @@ const feedPage = `<!DOCTYPE html>
       node.classList.add('fresh');
       setTimeout(function () { node.classList.remove('fresh'); }, 4000);
     }
-    msgs.appendChild(node);
+    insertOrdered(node);
     applyClamp(node);
     trimDom();
 
@@ -1368,22 +1502,35 @@ const feedPage = `<!DOCTYPE html>
         titleUnread++;
         document.title = '(' + titleUnread + ') ' + baseTitle;
       }
+      maybeNotify(it);
     }
     scheduleUI();
   }
 
   function prependTop(items) { // oldest..newest batch
-    var before = chat.scrollHeight;
-    for (var i = items.length - 1; i >= 0; i--) {
+    // Anchor on the first message currently on screen and restore its
+    // position after the insert — scrollHeight arithmetic is unreliable with
+    // lazy images and content-visibility.
+    var anchor = null, anchorTop = 0;
+    var vis = msgs.querySelectorAll('.msg:not(.hidden)');
+    var top = chat.getBoundingClientRect().top;
+    for (var a = 0; a < vis.length; a++) {
+      var r = vis[a].getBoundingClientRect();
+      if (r.bottom > top) { anchor = vis[a]; anchorTop = r.top; break; }
+    }
+    for (var i = 0; i < items.length; i++) {
       var it = items[i];
       if (document.getElementById('m' + it.key)) continue;
       var n = makeNode(it);
       if (!n) continue;
-      msgs.insertBefore(n, msgs.firstChild);
+      insertOrdered(n);
       applyClamp(n);
     }
     rebuildSeparators();
-    chat.scrollTop += (chat.scrollHeight - before);
+    if (anchor) {
+      var now = anchor.getBoundingClientRect().top;
+      chat.scrollTop += (now - anchorTop);
+    }
     renderHead();
   }
 
@@ -1399,16 +1546,18 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('jump').onclick = function () { scrollBottom(false); hideJump(); };
   document.getElementById('downbtn').onclick = function () { scrollBottom(false); hideJump(); };
   chat.addEventListener('scroll', function () {
-    if (nearBottom()) hideJump();
-    document.getElementById('downbtn').style.display = nearBottom() ? 'none' : 'flex';
+    var nb = nearBottom();
+    if (nb) hideJump();
+    document.getElementById('downbtn').style.display = nb ? 'none' : 'flex';
     if (chat.scrollTop < 70) maybeLoadOlder();
-  });
+  }, { passive: true });
 
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) {
       titleUnread = 0;
       document.title = baseTitle;
-      resync(); // pick up anything that arrived while the tab slept
+      resync(); // pick up anything that arrived while the tab slept (cheap: only new seqs)
+      ensureStream();
     }
   });
 
@@ -1426,23 +1575,27 @@ const feedPage = `<!DOCTYPE html>
     document.getElementById('topload').style.display = 'block';
 
     var collected = [];
-    var chain = Promise.resolve();
-    scopeChannels().forEach(function (ch) {
-      chain = chain.then(function () {
-        if (donePer[ch]) return;
-        var before = oldestPer[ch];
-        if (!before) { donePer[ch] = true; return; }
-        return fetch('/api/older?channel=' + encodeURIComponent(ch) + '&before=' + before)
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            var fresh = (data.items || []).filter(function (it) {
-              return !document.getElementById('m' + it.key);
-            });
-            if (!fresh.length) donePer[ch] = true;
-            collected = collected.concat(fresh);
+    var queue = scopeChannels().slice();
+    function one(ch) {
+      if (donePer[ch]) return Promise.resolve();
+      var before = oldestPer[ch];
+      if (!before) { donePer[ch] = true; return Promise.resolve(); }
+      return fetch('/api/older?channel=' + encodeURIComponent(ch) + '&before=' + before)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var fresh = (data.items || []).filter(function (it) {
+            return !document.getElementById('m' + it.key);
           });
-      });
-    });
+          if (!fresh.length) donePer[ch] = true;
+          collected = collected.concat(fresh);
+        }).catch(function () {});
+    }
+    // Three channels at a time: faster than one-by-one, gentle on the server.
+    function worker() {
+      if (!queue.length) return Promise.resolve();
+      return one(queue.shift()).then(worker);
+    }
+    var chain = Promise.all([worker(), worker(), worker()]);
     chain.then(function () {
       collected.sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); });
       if (collected.length) prependTop(collected);
@@ -1534,14 +1687,27 @@ const feedPage = `<!DOCTYPE html>
     }
     renderSidebar();
     return fetch('/api/messages');
-  }).then(function (r) { return r.json(); }).then(function (data) {
+  }).then(function (r) {
+    if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
+    return r.json();
+  }).then(function (data) {
+    booted = true;
+    document.getElementById('wakehint').style.display = 'none';
+    if (data.seq > lastSeq) lastSeq = data.seq;
     var items = (data.items || []).slice();
     items.sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); }); // oldest first
+    // One fragment, one layout: 800 bubbles appended individually made the
+    // boot visibly stutter on phones.
+    clearSkeleton();
+    var frag = document.createDocumentFragment();
     items.forEach(function (it) {
       try {
-        if (!document.getElementById('m' + it.key)) insertNodeBottom(it);
+        if (document.getElementById('m' + it.key)) return;
+        var n = makeNode(it);
+        if (n) { frag.appendChild(n); applyClamp(n); }
       } catch (e) {}
     });
+    msgs.appendChild(frag);
     rebuildSeparators();
     renderEmptyState();
     renderSidebar();
@@ -1549,10 +1715,21 @@ const feedPage = `<!DOCTYPE html>
     scrollBottom(true);
     handleHashTarget(); // popup deep link: land on the exact message
   }).catch(function (e) {
-    var meta = document.getElementById('emptystate');
+    if (e && e.message === 'login') return;
+    clearSkeleton();
+    document.getElementById('wakehint').style.display = 'none';
     var m = document.getElementById('msgs');
-    if (m) m.innerHTML = '<div class="empty"><div class="big">⚠️</div><div class="t">לא הצלחתי לטעון את ההודעות. ודא שהתוכנה רצה (Start.bat) ורענן.</div></div>';
+    var hint = isCloud ? 'בדוק את החיבור לאינטרנט ורענן את הדף.' : 'ודא שהתוכנה רצה (Start.bat) ורענן.';
+    if (m) m.innerHTML = '<div class="empty"><div class="big">⚠️</div><div class="t">לא הצלחתי לטעון את ההודעות. ' + hint + '</div></div>';
   });
+  // Cloud: a sleeping free-tier server takes up to a minute to answer the
+  // first request. Say so instead of shimmering in silence.
+  setTimeout(function () {
+    if (booted) return;
+    var w = document.getElementById('wakehint');
+    w.textContent = 'השרת מתעורר משינה… זה לוקח בדרך כלל עד דקה, הדף יתמלא לבד.';
+    w.style.display = 'block';
+  }, 6000);
 
   // ----- connection status --------------------------------------------------
   // Polls the server's own view of Telegram. When Telegram throttles us the
@@ -1649,6 +1826,7 @@ const feedPage = `<!DOCTYPE html>
 
   function openSearch() {
     searchOpen = true;
+    searchScrollTop = chat.scrollTop;
     document.getElementById('searchbar').classList.add('open');
     document.getElementById('msgs').style.display = 'none';
     document.getElementById('topload').style.display = 'none';
@@ -1657,20 +1835,33 @@ const feedPage = `<!DOCTYPE html>
     document.getElementById('resultslist').innerHTML = '';
     setTimeout(function () { document.getElementById('searchinput').focus(); }, 40);
   }
+  var searchScrollTop = 0;
   function closeSearch() {
     searchOpen = false;
     document.getElementById('searchbar').classList.remove('open');
     document.getElementById('searchinput').value = '';
     document.getElementById('results').style.display = 'none';
     document.getElementById('msgs').style.display = 'block';
-    scrollBottom(true);
+    chat.scrollTop = searchScrollTop; // back to where you were, not the bottom
   }
   document.getElementById('searchbtn').onclick = function () {
     if (searchOpen) closeSearch(); else openSearch();
   };
   document.getElementById('searchclose').onclick = closeSearch;
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape' && searchOpen) closeSearch();
+    if (ev.key === 'Escape') {
+      if (document.getElementById('moremenu').classList.contains('open')) { closeMore(); return; }
+      if (document.getElementById('kwback').style.display === 'flex') { document.getElementById('kwback').style.display = 'none'; return; }
+      if (document.getElementById('modalback').style.display === 'flex') { closeModal(); return; }
+      if (searchOpen) closeSearch();
+    }
+    // "/" or Ctrl+K opens search, like every messenger.
+    if ((ev.key === '/' || (ev.key.toLowerCase() === 'k' && (ev.ctrlKey || ev.metaKey))) && !searchOpen) {
+      var tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      ev.preventDefault();
+      openSearch();
+    }
   });
 
   function markHits(node, q) {
@@ -1680,13 +1871,16 @@ const feedPage = `<!DOCTYPE html>
       var found = [];
       while (walker.nextNode()) found.push(walker.currentNode);
       found.forEach(function (tn) {
-        var idx = tn.textContent.toLowerCase().indexOf(q.toLowerCase());
-        if (idx < 0) return;
-        var range = document.createRange();
-        range.setStart(tn, idx);
-        range.setEnd(tn, idx + q.length);
-        var m = document.createElement('mark');
-        try { range.surroundContents(m); } catch (e) {}
+        var lower = tn.textContent.toLowerCase(), ql = q.toLowerCase();
+        var idx = lower.lastIndexOf(ql); // back to front: earlier offsets stay valid
+        while (idx >= 0) {
+          var range = document.createRange();
+          range.setStart(tn, idx);
+          range.setEnd(tn, idx + q.length);
+          var m = document.createElement('mark');
+          try { range.surroundContents(m); } catch (e) {}
+          idx = idx > 0 ? lower.lastIndexOf(ql, idx - 1) : -1;
+        }
       });
     }
   }
@@ -1714,7 +1908,15 @@ const feedPage = `<!DOCTYPE html>
           var node = holder.querySelector('.msg');
           if (!node) return;
           node.id = 'sr_' + it.key; // never collide with the live timeline
+          node.setAttribute('data-ts', it.ts);
+          var stm = node.querySelector('.msgtime');
+          if (stm && it.ts) stm.textContent = fmtStamp(it.ts);
           markHits(node, q);
+          // Clicking the stamp lands on the message in the timeline when loaded.
+          if (stm && document.getElementById('m' + it.key)) {
+            stm.style.cursor = 'pointer'; stm.style.textDecoration = 'underline'; stm.title = 'עבור להודעה בציר הזמן';
+            stm.onclick = function () { closeSearch(); gotoMessage(it.channel, it.id); };
+          }
           list.appendChild(node);
           applyClamp(node);
         });
@@ -1746,7 +1948,7 @@ const feedPage = `<!DOCTYPE html>
     document.getElementById('lightbox').style.display = 'flex';
   }
   function lbClose() { document.getElementById('lightbox').style.display = 'none'; }
-  msgs.addEventListener('click', function (ev) {
+  chat.addEventListener('click', function (ev) {
     var img = ev.target;
     if (!img || img.tagName !== 'IMG') return;
     if (img.closest && img.closest('.vidwrap')) return; // video thumbs have their own click
@@ -1778,10 +1980,17 @@ const feedPage = `<!DOCTYPE html>
 
   // ----- theme --------------------------------------------------------------
   var theme = 'dark';
+  try { if (localStorage.getItem('tgpopup-theme') === 'light') theme = 'light'; } catch (e) {}
   function applyTheme() {
     document.body.classList.toggle('light', theme === 'light');
+    document.documentElement.classList.toggle('light', theme === 'light');
     document.getElementById('themebtn').textContent = theme === 'light' ? '🌙' : '🌓';
+    try { localStorage.setItem('tgpopup-theme', theme); } catch (e) {}
+    var tc = document.querySelector('meta[name="theme-color"]:not([media])');
+    if (!tc) { tc = document.createElement('meta'); tc.name = 'theme-color'; document.head.appendChild(tc); }
+    tc.content = theme === 'light' ? '#ffffff' : '#0f1320';
   }
+  applyTheme();
   document.getElementById('themebtn').onclick = function () {
     theme = (theme === 'light') ? 'dark' : 'light';
     applyTheme();
@@ -1855,6 +2064,7 @@ const feedPage = `<!DOCTYPE html>
 
   // ----- autostart ----------------------------------------------------------
   fetch('/api/autostart').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.supported === false) return; // cloud / phone: nothing to start with Windows
     var row = document.getElementById('autostartrow');
     row.style.display = 'block';
     document.getElementById('autostartchk').checked = !!d.on;
@@ -1935,22 +2145,187 @@ const feedPage = `<!DOCTYPE html>
   fetch('/api/settings').then(function (r) { return r.json(); }).then(function (d) {
     setPopups = d.popups !== false;
     setSound = d.sound !== false;
-    if (d.theme === 'light') { theme = 'light'; applyTheme(); }
+    if (d.theme === 'light' || d.theme === 'dark') { theme = d.theme; applyTheme(); }
     paintToggles();
+    applyCaps(!!d.cloud);
+  }).catch(function () {});
+
+  // Online there is no desktop: no popups, no sounds, no keyword filter for
+  // popups, no "start with Windows". The phone gets browser notifications.
+  function applyCaps(cloud) {
+    isCloud = cloud;
+    var hide = cloud ? ['tglpopups', 'tglsound', 'kwbtn'] : [];
+    hide.forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    var nb = document.getElementById('tglnotif');
+    if ('Notification' in window) { nb.style.display = 'flex'; paintNotif(); }
+    buildMoreMenu();
+  }
+
+  // ----- browser notifications (phone / cloud) ------------------------------
+  // The desktop app pops its own windows; online the browser does it. Opt-in
+  // per device (localStorage), only while the page is hidden or another
+  // channel is in focus, and only via the Notification API (no push server —
+  // the free cloud plan sleeps, so push could not be delivered anyway).
+  var notifOn = false;
+  try { notifOn = localStorage.getItem('tgpopup-notif') === '1'; } catch (e) {}
+  function paintNotif() {
+    var b = document.getElementById('tglnotif');
+    var granted = ('Notification' in window) && Notification.permission === 'granted';
+    var on = notifOn && granted;
+    b.textContent = on ? '🔔' : '🔕';
+    b.className = 'iconbtn keep' + (on ? '' : ' off');
+    b.title = on ? 'התראות בדפדפן פועלות — לחץ לכיבוי' : 'הפעל התראות בדפדפן';
+  }
+  document.getElementById('tglnotif').onclick = function () {
+    if (!('Notification' in window)) { toast('הדפדפן הזה לא תומך בהתראות'); return; }
+    if (notifOn && Notification.permission === 'granted') {
+      notifOn = false;
+      try { localStorage.setItem('tgpopup-notif', '0'); } catch (e) {}
+      paintNotif();
+      toast('התראות הדפדפן כובו');
+      return;
+    }
+    Notification.requestPermission().then(function (p) {
+      if (p !== 'granted') { toast('הדפדפן חסם התראות. אפשר לאפשר בהגדרות האתר.'); paintNotif(); return; }
+      notifOn = true;
+      try { localStorage.setItem('tgpopup-notif', '1'); } catch (e) {}
+      paintNotif();
+      toast('התראות בדפדפן הופעלו — יופיעו כשהדף ברקע');
+      try { new Notification('ערוץ חי', { body: 'ההתראות פועלות ✓', icon: '/icon-192.png', silent: true, tag: 'tgpopup-test' }); } catch (e) {}
+    });
+  };
+  var lastNotifAt = 0;
+  function maybeNotify(it) {
+    if (!notifOn || !('Notification' in window) || Notification.permission !== 'granted') return;
+    var ch = chanByName(it.channel);
+    if (ch && ch.muted) return;
+    var visible = (current === 'all' || it.channel === current);
+    if (visible && !document.hidden) return; // you are looking at it already
+    var now = Date.now();
+    if (now - lastNotifAt < 1500) return; // a burst becomes one notification, not twenty
+    lastNotifAt = now;
+    var title = (ch && ch.title) || ('@' + it.channel);
+    var body = (it.preview || '').replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*/u, '');
+    var url = '/#msg=' + it.channel + '_' + it.id;
+    try {
+      var opts = { body: body, icon: ch && ch.photo ? ch.photo : '/icon-192.png', badge: '/icon-192.png', tag: 'tgpopup-' + it.channel, renotify: true, data: { url: url } };
+      if (navigator.serviceWorker && navigator.serviceWorker.controller && 'showNotification' in ServiceWorkerRegistration.prototype) {
+        navigator.serviceWorker.ready.then(function (reg) { reg.showNotification(title, opts); });
+      } else {
+        var n = new Notification(title, opts);
+        n.onclick = function () { window.focus(); gotoMessage(it.channel, it.id); n.close(); };
+      }
+    } catch (e) {}
+  }
+
+  // ----- "more" menu (narrow screens) ---------------------------------------
+  function closeMore() { document.getElementById('moremenu').classList.remove('open'); }
+  function buildMoreMenu() {
+    var m = document.getElementById('moremenu');
+    m.innerHTML = '';
+    function item(icon, label, fn) {
+      var d = document.createElement('div');
+      d.className = 'mitem'; d.setAttribute('role', 'menuitem'); d.setAttribute('tabindex', '0');
+      var i = document.createElement('span'); i.className = 'mi'; i.textContent = icon;
+      var t = document.createElement('span'); t.textContent = label;
+      d.appendChild(i); d.appendChild(t);
+      d.onclick = function () { closeMore(); fn(); };
+      m.appendChild(d);
+    }
+    item(theme === 'light' ? '🌙' : '🌓', 'מצב בהיר / כהה', function () { document.getElementById('themebtn').click(); });
+    if (current !== 'all') {
+      var ch = chanByName(current);
+      item(ch && ch.muted ? '🔔' : '🔕', ch && ch.muted ? 'בטל השתקה לערוץ' : 'השתק התראות לערוץ', function () { document.getElementById('tglmute').click(); });
+    }
+    if (!isCloud) {
+      item(setPopups ? '🖥️' : '🚫', setPopups ? 'כבה חלוניות במחשב' : 'הפעל חלוניות במחשב', function () { document.getElementById('tglpopups').click(); });
+      item(setSound ? '🔊' : '🔇', setSound ? 'כבה צליל התראה' : 'הפעל צליל התראה', function () { document.getElementById('tglsound').click(); });
+      item('⚙️', 'מילות מפתח להתראות', function () { document.getElementById('kwbtn').click(); });
+    }
+    if (deferredInstall) item('📲', 'התקן כאפליקציה', function () { document.getElementById('installbtn').click(); });
+  }
+  document.getElementById('morebtn').onclick = function (ev) {
+    ev.stopPropagation();
+    buildMoreMenu();
+    document.getElementById('moremenu').classList.toggle('open');
+  };
+  document.addEventListener('click', function (ev) {
+    if (!ev.target.closest || !ev.target.closest('#moremenu')) closeMore();
   });
+  // Keyboard activation for the icon buttons (they are divs).
+  document.querySelectorAll('.iconbtn[role="button"]').forEach(function (b) {
+    b.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); b.click(); } });
+  });
+
+  // ----- PWA: service worker + install button --------------------------------
+  var deferredInstall = null;
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }
+  var standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  window.addEventListener('beforeinstallprompt', function (ev) {
+    ev.preventDefault();
+    deferredInstall = ev;
+    if (!standalone) document.getElementById('installrow').style.display = 'block';
+  });
+  document.getElementById('installbtn').onclick = function () {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(function (c) {
+      if (c && c.outcome === 'accepted') { toast('האפליקציה הותקנה במסך הבית'); document.getElementById('installrow').style.display = 'none'; }
+      deferredInstall = null;
+    });
+  };
+  window.addEventListener('appinstalled', function () { document.getElementById('installrow').style.display = 'none'; });
+  // iPhone/iPad never fire beforeinstallprompt — explain the manual way once.
+  (function () {
+    var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    if (!ios || standalone) return;
+    var seen = false;
+    try { seen = localStorage.getItem('tgpopup-ios-hint') === '1'; } catch (e) {}
+    if (seen) return;
+    var row = document.getElementById('installrow');
+    var hint = document.getElementById('iosinstall');
+    document.getElementById('installbtn').style.display = 'none';
+    hint.style.display = 'block';
+    hint.textContent = 'להתקנה במסך הבית: לחץ על כפתור השיתוף (⎋) בספארי ואז "הוסף למסך הבית".';
+    row.style.display = 'block';
+    try { localStorage.setItem('tgpopup-ios-hint', '1'); } catch (e) {}
+  })();
 
   // ----- live stream, with self-healing resync ------------------------------
   // If the app restarted or the connection blipped, the tab quietly refetches
   // everything it missed instead of silently going stale.
+  // After the first full load, every resync asks only for what is newer
+  // than the last sequence number seen: a few hundred bytes, not the whole
+  // timeline. A 401 means the login cookie is gone — go sign in again.
+  var resyncing = null;
   function resync() {
-    fetch('/api/messages').then(function (r) { return r.json(); }).then(function (data) {
+    if (resyncing) return resyncing;
+    var url = booted && lastSeq > 0 ? '/api/messages?since=' + lastSeq : '/api/messages';
+    resyncing = fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (r.status === 401) { location.href = '/login'; return { items: [] }; }
+      return r.json();
+    }).then(function (data) {
+      resyncing = null;
+      if (data.seq > lastSeq) lastSeq = data.seq;
       var items = (data.items || []).slice();
       items.sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); });
       var added = 0;
+      var wasNear = nearBottom();
       items.forEach(function (it) {
         if (!document.getElementById('m' + it.key)) {
           insertNodeBottom(it);
           added++;
+          // A resync is how missed live posts arrive — count them unread
+          // exactly like a stream event would.
+          var visible = (current === 'all' || it.channel === current);
+          if (booted && !visible) {
+            unread[it.channel] = (unread[it.channel] || 0) + 1;
+            if (!unreadFirst[it.channel]) unreadFirst[it.channel] = it.key;
+          }
         }
       });
       if (added) {
@@ -1959,9 +2334,11 @@ const feedPage = `<!DOCTYPE html>
         renderEmptyState();
         renderSidebar();
         renderHead();
-        if (nearBottom()) scrollBottom(true);
+        if (wasNear) scrollBottom(true);
       }
-    }).catch(function () {});
+      return added;
+    }).catch(function () { resyncing = null; return 0; });
+    return resyncing;
   }
 
   // ----- jump-to-message (popup clicks land HERE, in this tab) ---------------
@@ -1973,8 +2350,13 @@ const feedPage = `<!DOCTYPE html>
     if (chanByName(channel) && current !== channel) select(channel);
     var node = document.getElementById('m' + key);
     if (!node) { if (current !== 'all') select('all'); node = document.getElementById('m' + key); }
-    if (!node) { resync(); node = document.getElementById('m' + key); }
-    if (!node) return;
+    if (!node) {
+      resync().then(function () {
+        if (document.getElementById('m' + key)) gotoMessage(channel, id);
+        else toast('ההודעה אינה בציר הזמן הטעון');
+      });
+      return;
+    }
     node.scrollIntoView({ block: 'center' });
     node.classList.add('fresh');
     setTimeout(function () { node.classList.remove('fresh'); }, 4000);
@@ -1997,25 +2379,58 @@ const feedPage = `<!DOCTYPE html>
     setTimeout(function () { gotoMessage(m[1], parseInt(m[2], 10)); }, 600);
   }
 
-  var es = new EventSource('/api/stream');
-  es.onopen = function () {
-    setStatus(true);
-    // Always pull current state on connect — covers the first-run case where
-    // the tab opened before the initial scan populated anything, and any
-    // messages that landed during a brief disconnect.
-    resync();
-  };
-  es.onerror = function () { setStatus(false); };
+  // EventSource reconnects by itself after a network blip (and sends
+  // Last-Event-ID, so the server replays what we missed). It gives up for
+  // good on an HTTP error — the login cookie expiring, the cloud server
+  // restarting mid-handshake — so we watch for CLOSED and rebuild it with
+  // backoff, passing the last sequence number ourselves.
+  var es = null, esBackoff = 2000, esTimer = null;
+  function ensureStream() {
+    if (es && es.readyState !== 2) return;
+    openStream();
+  }
+  function openStream() {
+    if (esTimer) { clearTimeout(esTimer); esTimer = null; }
+    if (es) { try { es.close(); } catch (e) {} }
+    es = new EventSource('/api/stream' + (lastSeq > 0 ? '?last=' + lastSeq : ''));
+    es.onopen = function () {
+      setStatus(true);
+      esBackoff = 2000;
+      // Pull current state on connect — the replay covers live posts, the
+      // (cheap, since-based) resync covers anything else.
+      resync();
+    };
+    es.onerror = function () {
+      setStatus(false);
+      if (es.readyState !== 2) return; // the browser is retrying on its own
+      // Closed for good: check whether we were logged out, then rebuild.
+      fetch('/api/settings', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 401) { location.href = '/login'; return; }
+        scheduleReopen();
+      }).catch(scheduleReopen);
+    };
+    es.onmessage = onStreamMessage;
+  }
+  function scheduleReopen() {
+    if (esTimer) return;
+    esTimer = setTimeout(function () { esTimer = null; openStream(); }, esBackoff);
+    esBackoff = Math.min(esBackoff * 2, 30000);
+  }
+  window.addEventListener('online', function () { esBackoff = 2000; ensureStream(); resync(); });
   // Safety net: a slow first scan can finish after boot; poll a few times
-  // early on so the page never sits empty waiting for a broadcast.
+  // early on (cheap since-based calls) so the page never sits empty.
   var bootPolls = 0;
   var bootTimer = setInterval(function () {
     bootPolls++;
     resync();
     if (bootPolls >= 6) clearInterval(bootTimer); // ~30s of coverage
   }, 5000);
-  es.onmessage = function (ev) {
+  // Belt and braces for long sessions: a light catch-up every two minutes.
+  setInterval(function () { if (!document.hidden) resync(); }, 120000);
+  openStream();
+  function onStreamMessage(ev) {
     try {
+      if (ev.lastEventId) { var sq = parseInt(ev.lastEventId, 10); if (sq > lastSeq) lastSeq = sq; }
       var d = JSON.parse(ev.data);
       if (d.type === 'chaninfo') {
         // A channel's real name/avatar just arrived — refresh it in place.
@@ -2044,7 +2459,7 @@ const feedPage = `<!DOCTYPE html>
       }
       if (d.html) appendBottom(d, true);
     } catch (e) {}
-  };
+  }
 </script>
 </body>
 </html>`

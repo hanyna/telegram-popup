@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // bufferedWriter אוסף את כל התשובה כדי לחשב ETag ולדחוס לפני השליחה.
@@ -45,6 +46,14 @@ const gzipMinBytes = 1024
 
 // lean עוטף handler: ETag + 304 לבקשות GET, ודחיסת gzip כשהלקוח מקבל אותה.
 func lean(next http.HandlerFunc) http.HandlerFunc {
+	// One-entry cache per wrapped handler: the same body (same ETag) is
+	// gzipped once, not once per client. /api/messages barely changes
+	// between the page's and the bridge's polls, so most hits are reused.
+	var (
+		cacheMu   sync.Mutex
+		cacheTag  string
+		cacheGzip []byte
+	)
 	return func(w http.ResponseWriter, r *http.Request) {
 		bw := &bufferedWriter{h: http.Header{}}
 		next(bw, r)
@@ -69,12 +78,25 @@ func lean(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		if len(body) >= gzipMinBytes && acceptsGzip(r) && w.Header().Get("Content-Encoding") == "" {
-			var zb bytes.Buffer
-			zw, _ := gzip.NewWriterLevel(&zb, gzip.BestSpeed)
-			_, _ = zw.Write(body)
-			_ = zw.Close()
+			etag := w.Header().Get("ETag")
+			cacheMu.Lock()
+			if etag != "" && etag == cacheTag && cacheGzip != nil {
+				body = cacheGzip
+				cacheMu.Unlock()
+			} else {
+				cacheMu.Unlock()
+				var zb bytes.Buffer
+				zw, _ := gzip.NewWriterLevel(&zb, gzip.BestSpeed)
+				_, _ = zw.Write(body)
+				_ = zw.Close()
+				body = zb.Bytes()
+				if etag != "" {
+					cacheMu.Lock()
+					cacheTag, cacheGzip = etag, body
+					cacheMu.Unlock()
+				}
+			}
 			w.Header().Set("Content-Encoding", "gzip")
-			body = zb.Bytes()
 		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		w.WriteHeader(bw.status)

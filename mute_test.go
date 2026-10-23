@@ -97,7 +97,7 @@ func TestFeedPageEnforcesMutedProperty(t *testing.T) {
 // en masse while the retry handler auto-played them. Pin both fixes.
 func TestErrorRetryNeverAutoplaysUserVideos(t *testing.T) {
 	// The page's retry handler may call play() ONLY for autoplay previews.
-	idx := strings.Index(feedPage, "msgs.addEventListener('error'")
+	idx := strings.Index(feedPage, "chat.addEventListener('error'")
 	if idx < 0 {
 		t.Fatal("error-retry handler missing")
 	}

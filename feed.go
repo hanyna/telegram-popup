@@ -32,6 +32,10 @@ type FeedItem struct {
 	Preview string `json:"preview"` // one-line text for the sidebar
 	HTML    string `json:"html"`
 	Text    string `json:"text"` // full plain text, untruncated, tags stripped — for external consumers (e.g. TTS/IVR integrations)
+	// Seq is a per-process counter stamped on every item the feed learns
+	// about (live or history). Pages ask for "everything after seq N"
+	// instead of re-downloading the whole timeline on every reconnect.
+	Seq int64 `json:"seq"`
 }
 
 type Feed struct {
@@ -39,6 +43,8 @@ type Feed struct {
 	items   []FeedItem // sorted newest first
 	keys    map[string]bool
 	clients map[chan string]struct{}
+	seq     int64  // last Seq handed out
+	snap    []byte // cached /api/messages body; nil = stale
 
 	infoMu sync.Mutex
 	infos  map[string]ChannelInfo // channel username -> display identity
@@ -218,16 +224,20 @@ func (f *Feed) Add(msgs []Message) {
 		}
 		f.keys[k] = true
 		item := toItem(m)
+		f.seq++
+		item.Seq = f.seq
 		f.items = append(f.items, item)
 		if payload, err := json.Marshal(item); err == nil {
+			ev := "id: " + strconv.FormatInt(item.Seq, 10) + "\ndata: " + string(payload)
 			for ch := range f.clients {
 				select {
-				case ch <- string(payload):
+				case ch <- ev:
 				default:
 				}
 			}
 		}
 	}
+	f.snap = nil
 	f.sortLocked()
 	f.trimLocked()
 }
@@ -256,8 +266,14 @@ func (f *Feed) AddOlder(msgs []Message) (added, minID int) {
 			continue
 		}
 		f.keys[k] = true
-		f.items = append(f.items, toItem(m))
+		item := toItem(m)
+		f.seq++
+		item.Seq = f.seq
+		f.items = append(f.items, item)
 		added++
+	}
+	if added > 0 {
+		f.snap = nil
 	}
 	f.sortLocked()
 	return added, minID
@@ -276,6 +292,7 @@ func (f *Feed) RemoveChannelItems(channel string) {
 		kept = append(kept, it)
 	}
 	f.items = kept
+	f.snap = nil
 }
 
 func (f *Feed) trimLocked() {
@@ -308,6 +325,7 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/goto", f.handleGoto)
 	mux.HandleFunc("/api/avatar", f.handleAvatar)
 	mux.HandleFunc("/api/update", f.handleUpdate)
+	registerPWA(mux) // manifest, service worker, icons, wake page
 
 	bind := f.BindAddr
 	if bind == "" {
@@ -317,9 +335,16 @@ func (f *Feed) Start(port int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// The access key (cloud mode) wraps the ENTIRE mux — page, APIs, stream.
-	handler := withAccessKey(mux, f.AccessKey)
-	go func() { _ = http.Serve(ln, handler) }()
+	// Order, outside-in: browser headers → CSRF/rebinding guard → access key
+	// (cloud) → the mux. The guard sits before the key so a hostile page
+	// cannot even reach the login limiter from a foreign origin.
+	handler := securityHeaders(guardRequests(withAccessKey(mux, f.AccessKey), f.BindAddr != ""))
+	srv := &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: 15 * time.Second, // slow-loris protection in the cloud
+		IdleTimeout:       120 * time.Second,
+	}
+	go func() { _ = srv.Serve(ln) }()
 	return "http://" + ln.Addr().String(), nil
 }
 
@@ -336,14 +361,39 @@ func (f *Feed) handlePage(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(page))
 }
 
+// handleMessages returns the timeline. With ?since=<seq> only items the
+// feed learned about after that sequence number come back — a reconnecting
+// tab pays a few hundred bytes instead of the whole 800-item page. Every
+// answer carries "seq", the newest sequence number, for the next call.
 func (f *Feed) handleMessages(w http.ResponseWriter, r *http.Request) {
-	f.mu.Lock()
-	items := make([]FeedItem, len(f.items))
-	copy(items, f.items)
-	f.mu.Unlock()
-
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
+	since, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
+
+	f.mu.Lock()
+	if since > 0 {
+		var items []FeedItem
+		for _, it := range f.items {
+			if it.Seq > since {
+				items = append(items, it)
+			}
+		}
+		seq := f.seq
+		f.mu.Unlock()
+		if items == nil {
+			items = []FeedItem{}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": items, "seq": seq, "partial": true})
+		return
+	}
+	if f.snap == nil {
+		// Encode once per change, not once per request: with a phone and the
+		// Yemot bridge both polling, the same 800 items were being
+		// re-serialised many times a minute.
+		f.snap, _ = json.Marshal(map[string]any{"items": f.items, "seq": f.seq})
+	}
+	body := f.snap
+	f.mu.Unlock()
+	_, _ = w.Write(body)
 }
 
 func (f *Feed) handleOlder(w http.ResponseWriter, r *http.Request) {
@@ -480,6 +530,9 @@ func (f *Feed) handleVideo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	src, err := f.ResolveVideo(channel, id)
+	if err == nil && !allowedMediaHost(src) {
+		err = errNotTelegram
+	}
 	if err != nil {
 		// Anonymous resolution failed. If a Telegram account is connected,
 		// this video CAN be fetched via the API (the large-video path).
@@ -532,9 +585,9 @@ func (f *Feed) handleAutostart(w http.ResponseWriter, r *http.Request) {
 		if f.GetAutostart != nil {
 			on = f.GetAutostart()
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"on": on})
+		_ = json.NewEncoder(w).Encode(map[string]any{"on": on, "supported": f.SetAutostart != nil && f.BindAddr == ""})
 	case http.MethodPost:
-		if f.SetAutostart == nil {
+		if f.SetAutostart == nil || f.BindAddr != "" {
 			http.Error(w, `{"error":"unsupported"}`, http.StatusNotImplemented)
 			return
 		}
@@ -624,7 +677,7 @@ func (f *Feed) handleAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	info, has := f.GetChannelInfo(channel)
-	if !has || info.Photo == "" {
+	if !has || info.Photo == "" || !allowedMediaHost(info.Photo) {
 		http.Error(w, "no avatar", http.StatusNotFound)
 		return
 	}
@@ -846,10 +899,29 @@ func (f *Feed) resolveCached(channel string, id int) (string, error) {
 }
 
 var errNoResolver = fmt.Errorf("resolver not wired")
+var errNotTelegram = fmt.Errorf("הסרטון לא נמצא בשרתי טלגרם")
 
 // mediaClient has no overall timeout — a long video streams for as long as
 // it plays. Connection setup still uses Go's sane transport defaults.
-var mediaClient = &http.Client{}
+// Redirects are followed only onto Telegram hosts (see allowedMediaHost).
+var mediaClient = &http.Client{
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects")
+		}
+		if !allowedMediaHost(req.URL.String()) {
+			return fmt.Errorf("redirect to a non-Telegram host refused")
+		}
+		return nil
+	},
+}
+
+// dropVideoCache forgets a resolved URL so the next request re-resolves it.
+func (f *Feed) dropVideoCache(channel string, id int) {
+	f.videoMu.Lock()
+	delete(f.videoCache, channel+"/"+strconv.Itoa(id))
+	f.videoMu.Unlock()
+}
 
 // handleMedia streams the video THROUGH the app: the server fetches the file
 // from Telegram's CDN with browser-like headers and pipes the bytes to the
@@ -864,6 +936,13 @@ func (f *Feed) handleMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	src, err := f.resolveCached(channel, id)
+	if err == nil && !allowedMediaHost(src) {
+		// The URL came out of a Telegram page, but it does not point at
+		// Telegram. Never fetch it (SSRF) and never hand it on (open redirect).
+		f.dropVideoCache(channel, id)
+		http.Error(w, "unavailable", http.StatusNotFound)
+		return
+	}
 	if err == nil && r.URL.Query().Get("redirect") == "1" {
 		// חיסכון ברוחב פס: לקוח שיודע להוריד בעצמו (הגשר לימות) מקבל את
 		// הכתובת הישירה של טלגרם, והסרטון לא עובר דרך השרת הזה.
@@ -906,13 +985,15 @@ func (f *Feed) handleMedia(w http.ResponseWriter, r *http.Request) {
 	// drop it, resolve fresh, and retry once — invisible to the player.
 	if resp.StatusCode >= 400 {
 		resp.Body.Close()
-		key := channel + "/" + strconv.Itoa(id)
-		f.videoMu.Lock()
-		delete(f.videoCache, key)
-		f.videoMu.Unlock()
+		f.dropVideoCache(channel, id)
 		src2, rErr := f.resolveCached(channel, id)
 		if rErr != nil {
 			f.registerPending(channel, id)
+			http.Error(w, "unavailable", http.StatusNotFound)
+			return
+		}
+		if !allowedMediaHost(src2) {
+			f.dropVideoCache(channel, id)
 			http.Error(w, "unavailable", http.StatusNotFound)
 			return
 		}
@@ -1062,7 +1143,15 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if f.GetTheme != nil {
 			theme = f.GetTheme()
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"popups": popups, "sound": sound, "theme": theme})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"popups": popups, "sound": sound, "theme": theme,
+			// Capability flags: the page hides what makes no sense here.
+			// cloud → no desktop popups/sounds/autostart; the phone gets
+			// browser notifications instead.
+			"cloud":     f.BindAddr != "",
+			"version":   version,
+			"autostart": f.SetAutostart != nil && f.BindAddr == "",
+		})
 
 	case http.MethodPost:
 		if f.SetSettings == nil {
@@ -1103,9 +1192,27 @@ func (f *Feed) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ch := make(chan string, 32)
+	// A reconnecting tab tells us the last event it saw (the browser sends
+	// Last-Event-ID by itself after a drop; a tab that rebuilt the stream
+	// passes ?last=). Everything newer is replayed before going live, so a
+	// blip never loses a message and never costs a full resync.
+	last, _ := strconv.ParseInt(r.Header.Get("Last-Event-ID"), 10, 64)
+	if q, err := strconv.ParseInt(r.URL.Query().Get("last"), 10, 64); err == nil && q > 0 {
+		last = q
+	}
+
+	ch := make(chan string, 64)
 	f.mu.Lock()
 	f.clients[ch] = struct{}{}
+	var replay []FeedItem
+	if last > 0 {
+		for i := len(f.items) - 1; i >= 0; i-- { // oldest first
+			if f.items[i].Seq > last {
+				replay = append(replay, f.items[i])
+			}
+		}
+	}
+	seq := f.seq
 	f.mu.Unlock()
 	defer func() {
 		f.mu.Lock()
@@ -1113,7 +1220,13 @@ func (f *Feed) handleStream(w http.ResponseWriter, r *http.Request) {
 		f.mu.Unlock()
 	}()
 
-	_, _ = fmt.Fprint(w, ": connected\n\n")
+	_, _ = fmt.Fprintf(w, "retry: 3000\n: connected seq=%d\n\n", seq)
+	sort.Slice(replay, func(i, j int) bool { return replay[i].Seq < replay[j].Seq })
+	for _, it := range replay {
+		if payload, err := json.Marshal(it); err == nil {
+			_, _ = fmt.Fprintf(w, "id: %d\ndata: %s\n\n", it.Seq, payload)
+		}
+	}
 	fl.Flush()
 
 	heartbeat := time.NewTicker(20 * time.Second)
@@ -1122,7 +1235,11 @@ func (f *Feed) handleStream(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case msg := <-ch:
-			_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
+			if strings.HasPrefix(msg, "id: ") {
+				_, _ = fmt.Fprintf(w, "%s\n\n", msg)
+			} else {
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
+			}
 			fl.Flush()
 		case <-heartbeat.C:
 			_, _ = fmt.Fprint(w, ": ping\n\n")
@@ -1137,7 +1254,11 @@ func (f *Feed) handleStream(w http.ResponseWriter, r *http.Request) {
 // helpers, so hostile channel content never becomes live markup.
 func renderFeedItem(m Message) string {
 	var b strings.Builder
-	b.WriteString(`<article class="msg" id="m` + html.EscapeString(itemKey(m)) + `" data-channel="` + html.EscapeString(m.Channel) + `">`)
+	ts := int64(0)
+	if t, err := time.Parse(time.RFC3339, m.Time); err == nil {
+		ts = t.Unix()
+	}
+	b.WriteString(`<article class="msg" id="m` + html.EscapeString(itemKey(m)) + `" data-channel="` + html.EscapeString(m.Channel) + `" data-ts="` + strconv.FormatInt(ts, 10) + `">`)
 
 	// No outbound links: the channel name filters the timeline in-place and
 	// the timestamp is plain text. Nothing here ever opens Telegram.
@@ -1246,7 +1367,10 @@ func feedMediaHTML(m Message) string {
 		b.WriteString(`<div class="pollbox"><div class="pollq">📊 ` + html.EscapeString(m.Poll) + `</div>`)
 		for _, opt := range m.PollOpts {
 			pct := html.EscapeString(opt.Pct)
-			width := strings.TrimSuffix(pct, "%")
+			width := "0"
+			if n, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(opt.Pct), "%")); err == nil && n >= 0 && n <= 100 {
+				width = strconv.Itoa(n)
+			}
 			b.WriteString(`<div class="pollopt">` +
 				`<div class="pollmeta"><span>` + html.EscapeString(opt.Text) + `</span><b>` + pct + `</b></div>` +
 				`<div class="pollbar"><i style="width:` + width + `%"></i></div></div>`)
@@ -1277,7 +1401,7 @@ func feedMediaHTML(m Message) string {
 			inner += `<div class="linkdesc">` + html.EscapeString(desc) + `</div>`
 		}
 		inner += `</div>`
-		if m.LinkHref != "" {
+		if m.LinkHref != "" && safeHref(m.LinkHref) {
 			b.WriteString(`<a class="linkcard" href="` + html.EscapeString(m.LinkHref) + `" target="_blank" rel="noopener">` + inner + `</a>`)
 		} else {
 			b.WriteString(`<div class="linkcard">` + inner + `</div>`)
@@ -1285,6 +1409,12 @@ func feedMediaHTML(m Message) string {
 	}
 
 	return b.String()
+}
+
+// safeHref allows only web links into href attributes.
+func safeHref(u string) bool {
+	l := strings.ToLower(strings.TrimSpace(u))
+	return strings.HasPrefix(l, "https://") || strings.HasPrefix(l, "http://")
 }
 
 func feedStamp(iso string) string {
