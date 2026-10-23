@@ -104,18 +104,23 @@ func guardRequests(next http.Handler, cloud bool) http.Handler {
 			http.Error(w, "forbidden host", http.StatusForbidden)
 			return
 		}
-		if o := r.Header.Get("Origin"); o != "" && o != "null" {
-			if ou, err := url.Parse(o); err != nil || hostOnly(ou.Host) != hostOnly(r.Host) {
-				http.Error(w, "cross-origin request refused", http.StatusForbidden)
-				return
-			}
-		}
-		if sfs := r.Header.Get("Sec-Fetch-Site"); sfs == "cross-site" {
-			http.Error(w, "cross-site request refused", http.StatusForbidden)
-			return
-		}
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
+			// Origin / Sec-Fetch-Site are checked ONLY on state-changing
+			// requests. A plain GET arriving from another site is just
+			// someone clicking a link to the page (it carries
+			// Sec-Fetch-Site: cross-site too), and reads of /api/ from a
+			// foreign page are already stopped by the browser (no CORS).
+			if o := r.Header.Get("Origin"); o != "" && o != "null" {
+				if ou, err := url.Parse(o); err != nil || hostOnly(ou.Host) != hostOnly(r.Host) {
+					http.Error(w, "cross-origin request refused", http.StatusForbidden)
+					return
+				}
+			}
+			if sfs := r.Header.Get("Sec-Fetch-Site"); sfs == "cross-site" {
+				http.Error(w, "cross-site request refused", http.StatusForbidden)
+				return
+			}
 			// The login form is the one legitimate non-JSON POST.
 			if r.URL.Path != loginPath {
 				ct := strings.ToLower(r.Header.Get("Content-Type"))

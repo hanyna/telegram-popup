@@ -67,6 +67,17 @@ func TestGuardRefusesForeignHostAndOrigin(t *testing.T) {
 		t.Fatalf("non-JSON POST should be refused, got %d", rec.Code)
 	}
 
+	// Following a link from another site is a plain GET and must pass.
+	req = httptest.NewRequest("GET", "http://localhost:8420/", nil)
+	req.Host = "localhost:8420"
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("cross-site navigation GET must pass, got %d", rec.Code)
+	}
+
 	// The page's own fetch passes.
 	req = httptest.NewRequest("POST", "http://localhost:8420/api/settings", strings.NewReader("{}"))
 	req.Host = "localhost:8420"
