@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -45,6 +47,7 @@ type Feed struct {
 	clients map[chan string]struct{}
 	seq     int64  // last Seq handed out
 	snap    []byte // cached /api/messages body; nil = stale
+	srv     *http.Server
 
 	infoMu sync.Mutex
 	infos  map[string]ChannelInfo // channel username -> display identity
@@ -72,14 +75,14 @@ type Feed struct {
 	ResolveVideo  func(channel string, id int) (string, error)
 	// BigVideo downloads a large video via an authenticated Telegram account
 	// and returns a local file path. nil when the account feature is off.
-	BigVideo    func(channel string, id int) (string, error)
+	BigVideo     func(channel string, id int) (string, error)
 	HasTGAccount func() bool
-	Search        func(query, channel string, limit int) []Message
-	ArchiveCount  func() int
-	GetAutostart  func() bool
-	SetAutostart  func(on bool) error
-	GetTheme      func() string
-	SetTheme      func(theme string)
+	Search       func(query, channel string, limit int) []Message
+	ArchiveCount func() int
+	GetAutostart func() bool
+	SetAutostart func(on bool) error
+	GetTheme     func() string
+	SetTheme     func(theme string)
 	// Self-update hooks (desktop only): check the repo for a newer version,
 	// and download+apply it. Nil in the cloud (Render updates itself).
 	CheckUpdate func() (latest string, err error)
@@ -344,8 +347,20 @@ func (f *Feed) Start(port int) (string, error) {
 		ReadHeaderTimeout: 15 * time.Second, // slow-loris protection in the cloud
 		IdleTimeout:       120 * time.Second,
 	}
+	f.srv = srv
 	go func() { _ = srv.Serve(ln) }()
 	return "http://" + ln.Addr().String(), nil
+}
+
+// Shutdown closes the HTTP server gracefully (open SSE streams are ended,
+// in-flight requests get a moment to finish). Safe to call when not started.
+func (f *Feed) Shutdown(timeout time.Duration) {
+	if f.srv == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	_ = f.srv.Shutdown(ctx)
 }
 
 func (f *Feed) handlePage(w http.ResponseWriter, r *http.Request) {
@@ -542,6 +557,11 @@ func (f *Feed) handleVideo(w http.ResponseWriter, r *http.Request) {
 				"proxy": "/api/media?channel=" + channel + "&id=" + strconv.Itoa(id),
 				"big":   true, // played through the account-download proxy
 			})
+			return
+		}
+		if errors.Is(err, ErrMediaTooBig) {
+			// Final: never retry, tell the page to relabel the item.
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error(), "toobig": true})
 			return
 		}
 		f.registerPending(channel, id)
@@ -857,6 +877,14 @@ func (f *Feed) RetryPending() {
 			continue
 		}
 		src, err := f.ResolveVideo(parts[0], id)
+		if errors.Is(err, ErrMediaTooBig) {
+			// Will never resolve anonymously — stop retrying, tell the page.
+			f.videoMu.Lock()
+			delete(f.pending, key)
+			f.videoMu.Unlock()
+			f.broadcast(map[string]any{"type": "videotoobig", "channel": parts[0], "id": id})
+			continue
+		}
 		if err != nil {
 			continue
 		}
@@ -1340,6 +1368,13 @@ func feedMediaHTML(m Message) string {
 			` controls preload="none" playsinline></video>` +
 			`<span class="durbadge durtop">` + html.EscapeString(m.Duration) + `</span>` +
 			`</div></div>`)
+
+	case m.VideoThumb != "" && m.TooBig:
+		// No play button: there is nothing to play outside Telegram. The
+		// frame links to the post so the user can open it there if they can.
+		b.WriteString(`<div class="photo"><a class="vidwrap toobig" href="` + html.EscapeString(m.URL) + `" target="_blank" rel="noopener noreferrer">` +
+			`<img src="` + html.EscapeString(m.VideoThumb) + `" alt="">` +
+			`<div class="toobiglabel"><b>סרטון ארוך</b><span>זמין לצפייה רק בתוך טלגרם</span></div>` + badge + `</a></div>`)
 
 	case m.VideoThumb != "":
 		embed := html.EscapeString(m.Channel) + "/" + strconv.Itoa(m.ID)

@@ -80,9 +80,9 @@ func TestStoreSearch(t *testing.T) {
 func TestStoreSkipsEmptyAndHostileChannelNames(t *testing.T) {
 	s := newTestStore(t)
 	s.Append([]Message{
-		{ID: 1, Channel: "ok", Text: ""},                          // empty, no media → skipped
-		{ID: 2, Channel: "../evil", Text: "טקסט"},                 // path traversal name → skipped
-		{ID: 3, Channel: "ok", Text: "", Photo: "https://p.jpg"},  // media-only → kept
+		{ID: 1, Channel: "ok", Text: ""},                         // empty, no media → skipped
+		{ID: 2, Channel: "../evil", Text: "טקסט"},                // path traversal name → skipped
+		{ID: 3, Channel: "ok", Text: "", Photo: "https://p.jpg"}, // media-only → kept
 	})
 	if n := s.Count(); n != 1 {
 		t.Fatalf("expected exactly 1 stored, got %d", n)

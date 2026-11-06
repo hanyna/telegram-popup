@@ -1,0 +1,55 @@
+name: Build Windows packages
+
+# Every push to main that touches the code rebuilds the two Windows packages
+# and commits them to downloads/ — the same place the in-app update button
+# and the README links point at. No local build machine needed.
+on:
+  push:
+    branches: [main]
+    paths: ['**.go', 'go.mod', 'go.sum', 'dist/**', 'version.json', '.github/workflows/build-windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-windows
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Skip the commit this workflow itself makes.
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test ./...
+      - name: Build TelegramPopup.exe
+        run: |
+          VERSION=$(grep -oP 'const version = "\K[^"]+' main.go)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mkdir -p build/full build/update
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsgui -s -w" -o build/full/TelegramPopup.exe .
+          cp build/full/TelegramPopup.exe build/update/TelegramPopup.new
+          cp dist/Start.bat dist/Stop.bat dist/Update.bat dist/Open-Page.bat dist/README.md build/full/
+          cp dist/config.json build/full/config.json
+          cp dist/Update.bat build/update/
+      - name: Package
+        run: |
+          mkdir -p downloads
+          (cd build/full   && zip -qr ../../downloads/TelegramPopup.zip .)
+          (cd build/update && zip -qr ../../downloads/TelegramPopup-Update.zip .)
+          echo "{\"version\": \"$VERSION\"}" > version.json
+          ls -la downloads
+      - name: Commit packages
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add downloads version.json
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -m "Build Windows packages v$VERSION [skip ci]"
+          git push

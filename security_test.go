@@ -15,10 +15,10 @@ func TestAllowedMediaHost(t *testing.T) {
 		"https://t.me/s/x",
 	}
 	bad := []string{
-		"http://cdn4.telesco.pe/file/a.mp4",   // plain http
-		"https://evil.com/telesco.pe/a.mp4",   // suffix in path, not host
-		"https://telesco.pe.evil.com/a.mp4",   // suffix in the middle
-		"https://10.0.0.5/internal.mp4",       // raw IP
+		"http://cdn4.telesco.pe/file/a.mp4", // plain http
+		"https://evil.com/telesco.pe/a.mp4", // suffix in path, not host
+		"https://telesco.pe.evil.com/a.mp4", // suffix in the middle
+		"https://10.0.0.5/internal.mp4",     // raw IP
 		"https://[::1]/x.mp4",
 		"file:///etc/passwd",
 		"",

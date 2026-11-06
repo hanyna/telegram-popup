@@ -47,15 +47,15 @@ var backoffLadder = []time.Duration{
 
 // ChannelStatus is one row of the diagnostics board shown in the page.
 type ChannelStatus struct {
-	Channel   string `json:"channel"`
-	OK        bool   `json:"ok"`
-	Messages  int    `json:"messages"`   // messages seen in the last good fetch
-	Error     string `json:"error"`      // human-readable, in Hebrew
-	Blocked   bool   `json:"blocked"`    // Telegram is refusing this channel
-	LastOK    int64  `json:"last_ok"`    // unix seconds, 0 = never
-	LastTry   int64  `json:"last_try"`   // unix seconds
-	RetryIn   int    `json:"retry_in"`   // seconds until the next attempt
-	Failures  int    `json:"failures"`   // consecutive failures
+	Channel  string `json:"channel"`
+	OK       bool   `json:"ok"`
+	Messages int    `json:"messages"` // messages seen in the last good fetch
+	Error    string `json:"error"`    // human-readable, in Hebrew
+	Blocked  bool   `json:"blocked"`  // Telegram is refusing this channel
+	LastOK   int64  `json:"last_ok"`  // unix seconds, 0 = never
+	LastTry  int64  `json:"last_try"` // unix seconds
+	RetryIn  int    `json:"retry_in"` // seconds until the next attempt
+	Failures int    `json:"failures"` // consecutive failures
 }
 
 type limiter struct {
@@ -205,7 +205,7 @@ func (l *limiter) AnyBlocked(channels []string) bool {
 func isThrottle(status int) bool {
 	switch status {
 	case http.StatusTooManyRequests, // 429 — the explicit one
-		http.StatusForbidden,        // 403 — Telegram's quiet block
+		http.StatusForbidden, // 403 — Telegram's quiet block
 		http.StatusServiceUnavailable,
 		http.StatusBadGateway,
 		http.StatusGatewayTimeout:

@@ -1,0 +1,30 @@
+{
+  "channels": [
+    "elisha_yered",
+    "hakolhayehudi",
+    "realelchangr",
+    "ayeletlash",
+    "SamariaUpdates",
+    "nilchamim",
+    "hatzhalhyosh"
+  ],
+  "poll_seconds": 20,
+  "popups": true,
+  "popup_seconds": 15,
+  "max_popups_per_scan": 3,
+  "sound": true,
+  "feed": true,
+  "feed_port": 8420,
+  "open_feed_on_start": true,
+  "app_window": true,
+  "history_messages": 60,
+  "notify_on_first_run": false,
+  "muted_channels": [],
+  "pinned_channels": [],
+  "include_keywords": [],
+  "exclude_keywords": [],
+  "skip_empty_text": true,
+  "theme": "dark",
+  "update_url": "https://raw.githubusercontent.com/hanyna/telegram-popup/main",
+  "allow_channel_edit": false
+}

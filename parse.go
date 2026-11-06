@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"html"
 	"regexp"
 	"strconv"
@@ -21,6 +22,11 @@ type Message struct {
 	Video      string `json:"video,omitempty"`  // inline mp4 URL when Telegram embeds the file itself
 	VideoThumb string `json:"vthumb,omitempty"` // preview frame for videos
 	Duration   string `json:"dur,omitempty"`    // human-readable video length, e.g. "0:31"
+	// TooBig: Telegram's public page says "Media is too big" — the file is
+	// served to logged-in clients only. There is nothing to fetch, so the
+	// page shows a clear label instead of a play button, and the resolver
+	// never wastes Telegram requests retrying it.
+	TooBig bool `json:"toobig,omitempty"`
 
 	Photos    []string  `json:"photos,omitempty"`   // album: every photo (incl. the first)
 	Voice     string    `json:"voice,omitempty"`    // voice message audio URL (.ogg)
@@ -57,10 +63,10 @@ type ChannelInfo struct {
 }
 
 var (
-	reOgTitle    = regexp.MustCompile(`property="og:title"\s+content="([^"]*)"`)
-	reOgImage    = regexp.MustCompile(`property="og:image"\s+content="([^"]*)"`)
-	reHeadTitle  = regexp.MustCompile(`tgme_channel_info_header_title[^>]*>(?:<span[^>]*>)?([^<]+)<`)
-	reHeadPhoto  = regexp.MustCompile(`tgme_page_photo_image[^>]*>\s*<img[^>]*src="([^"]+)"`)
+	reOgTitle   = regexp.MustCompile(`property="og:title"\s+content="([^"]*)"`)
+	reOgImage   = regexp.MustCompile(`property="og:image"\s+content="([^"]*)"`)
+	reHeadTitle = regexp.MustCompile(`tgme_channel_info_header_title[^>]*>(?:<span[^>]*>)?([^<]+)<`)
+	reHeadPhoto = regexp.MustCompile(`tgme_page_photo_image[^>]*>\s*<img[^>]*src="([^"]+)"`)
 )
 
 var (
@@ -76,6 +82,15 @@ var (
 // ExtractVideoSrc pulls the direct mp4 URL out of a post page — either the
 // inline <video> tag or the OpenGraph video meta that Telegram publishes on
 // plain post pages.
+// ErrMediaTooBig: the post exists but Telegram refuses to serve the file to
+// anonymous clients. Callers must NOT queue a retry — it will never change.
+var ErrMediaTooBig = errors.New("סרטון ארוך — טלגרם מאפשרת לצפות בו רק בתוך האפליקציה")
+
+// IsTooBigPage reports whether an embed/post page declares the media too big.
+func IsTooBigPage(page string) bool {
+	return reTooBig.MatchString(page) && !reMp4Anywhere.MatchString(page)
+}
+
 func ExtractVideoSrc(page string) string {
 	if m := reVideo.FindStringSubmatch(page); m != nil {
 		return html.UnescapeString(m[1])
@@ -127,6 +142,7 @@ var (
 	rePhoto    = regexp.MustCompile(`tgme_widget_message_photo_wrap[^>]*?url\('([^']+)'\)`)
 	reVideo    = regexp.MustCompile(`<video[^>]*?src="([^"]+)"`)
 	reVideoTh  = regexp.MustCompile(`tgme_widget_message_video_thumb[^>]*?url\('([^']+)'\)`)
+	reTooBig   = regexp.MustCompile(`(?i)Media is too big|message_media_not_supported_label[^<]*too big`)
 	reDuration = regexp.MustCompile(`video_duration[^>]*>([^<]+)<`)
 	reBr       = regexp.MustCompile(`(?i)<br\s*/?>`)
 	reTag      = regexp.MustCompile(`(?s)<[^>]*>`)
@@ -200,6 +216,9 @@ func ParseMessages(page string) []Message {
 		}
 		if m := reVideoTh.FindStringSubmatch(block); m != nil {
 			msg.VideoThumb = html.UnescapeString(m[1])
+		}
+		if msg.Video == "" && msg.VideoThumb != "" && reTooBig.MatchString(block) {
+			msg.TooBig = true
 		}
 		if m := reDuration.FindStringSubmatch(block); m != nil {
 			msg.Duration = strings.TrimSpace(m[1])

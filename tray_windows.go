@@ -59,9 +59,9 @@ const (
 	mfChecked     = 0x8
 	idiApp        = 32512
 
-	cmdOpen   = 101
-	cmdMute   = 102
-	cmdExit   = 103
+	cmdOpen = 101
+	cmdMute = 102
+	cmdExit = 103
 )
 
 type notifyIconData struct {
@@ -340,8 +340,8 @@ func buildIco() []byte {
 	put32(bih, 0, 40)
 	put32(bih, 4, size)
 	put32(bih, 8, size*2)
-	bih[12] = 1              // planes
-	bih[14] = 32             // bpp
+	bih[12] = 1  // planes
+	bih[14] = 32 // bpp
 	put32(bih, 20, uint32(len(pix)+len(mask)))
 
 	img := append(append(bih, pix...), mask...)

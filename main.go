@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "7.0"
+const version = "7.1"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -45,12 +45,12 @@ type State struct {
 // runtimeSettings are the toggles the page can flip while the app runs; the
 // scanner goroutine reads them and the HTTP goroutines write them.
 type runtimeSettings struct {
-	mu      sync.Mutex
-	popups  bool
-	sound   bool
-	theme   string
-	include []string // popup keyword filters, editable from the page
-	exclude []string
+	mu        sync.Mutex
+	popups    bool
+	sound     bool
+	theme     string
+	include   []string // popup keyword filters, editable from the page
+	exclude   []string
 	skipEmpty bool
 }
 
@@ -186,9 +186,13 @@ func main() {
 	statePath := filepath.Join(dir, "state.json")
 
 	// No console window exists on Windows — everything goes to app.log.
+	// The file comes FIRST in the MultiWriter: under -H windowsgui stdout
+	// is an invalid handle, and MultiWriter stops at the first failing
+	// writer — with stdout first, nothing ever reached the file.
+	rotateLog(dir)
 	if logFile, lErr := os.Create(filepath.Join(dir, "app.log")); lErr == nil {
 		_, _ = logFile.Write([]byte{0xEF, 0xBB, 0xBF}) // BOM for Notepad
-		out = io.MultiWriter(os.Stdout, logFile)
+		out = io.MultiWriter(logFile, os.Stdout)
 		defer logFile.Close()
 	}
 
@@ -246,8 +250,8 @@ func main() {
 	pinned := &channelSet{names: append([]string{}, cfg.PinnedChannels...)}
 	settings := &runtimeSettings{
 		popups: cfg.Popups, sound: cfg.Sound, theme: cfg.Theme,
-		include: append([]string{}, cfg.IncludeKeywords...),
-		exclude: append([]string{}, cfg.ExcludeKeywords...),
+		include:   append([]string{}, cfg.IncludeKeywords...),
+		exclude:   append([]string{}, cfg.ExcludeKeywords...),
 		skipEmpty: cfg.SkipEmptyText,
 	}
 
@@ -307,11 +311,13 @@ func main() {
 		cfg.Theme = settings.getTheme()
 		cfg.IncludeKeywords, cfg.ExcludeKeywords = settings.getKeywords()
 		if data, mErr := json.MarshalIndent(cfg, "", "  "); mErr == nil {
-			_ = os.WriteFile(cfgPath, data, 0o644)
+			_ = writeFileAtomic(cfgPath, data, 0o644)
 		}
 	}
 
 	// The live feed: a chat-style page in the browser, updating in real time.
+	// Declared early: the tray's Quit sends on it, the main loop receives.
+	stop := make(chan os.Signal, 2)
 	var feed *Feed
 	if cfg.Feed {
 		feed = NewFeed()
@@ -442,7 +448,7 @@ func main() {
 		feed.AccessKey = cloudKey
 		if feedURL, fErr := feed.Start(cfg.FeedPort); fErr != nil {
 			logLine("דף הערוץ החי לא עלה: %v", fErr)
-			if strings.Contains(fErr.Error(), "in use") || strings.Contains(fErr.Error(), "Only one usage") {
+			if isAddrInUse(fErr) || strings.Contains(fErr.Error(), "in use") || strings.Contains(fErr.Error(), "Only one usage") {
 				// The app is already running — so this launch simply becomes
 				// "reopen the page": open the existing instance and exit.
 				logLine("התוכנה כבר רצה — פותח את הדף הקיים ויוצא.")
@@ -464,7 +470,7 @@ func main() {
 						settings.set(&np, nil)
 						persist()
 					},
-					Quit: func() { os.Exit(0) },
+					Quit: func() { stop <- os.Interrupt }, // orderly, see the main loop
 				})
 			}
 			if cfg.OpenFeedOnStart && !*testMode {
@@ -498,7 +504,6 @@ func main() {
 		}
 	}
 
-	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	// One background worker fills in history, slowly, without competing with
@@ -697,7 +702,17 @@ func main() {
 		case <-kick:
 			scan()
 		case <-stop:
-			logf("נעצר. להתראות.")
+			// Orderly exit: stop the web server (ends open streams), flush
+			// the archive and the state file, then leave. Tray Quit and
+			// Ctrl+C both come through here — never os.Exit mid-write.
+			logf("נעצר — שומר ויוצא.")
+			if feed != nil {
+				feed.Shutdown(3 * time.Second)
+			}
+			scanMu.Lock()
+			saveState(statePath, state)
+			scanMu.Unlock()
+			logf("להתראות.")
 			return
 		}
 	}
@@ -870,6 +885,12 @@ func fetchEmbedVideo(channel string, id int) (string, error) {
 		if src := ExtractVideoSrc(page); src != "" {
 			return src, nil
 		}
+		if IsTooBigPage(page) {
+			// Telegram said so explicitly: stop here, do not try the other
+			// four page variants — they all say the same and each one costs
+			// a request against the rate budget.
+			return "", ErrMediaTooBig
+		}
 	}
 
 	// Second angle: the listing page centered on this post sometimes inlines
@@ -935,7 +956,7 @@ func loadState(path string) State {
 
 func saveState(path string, s State) {
 	if data, err := json.MarshalIndent(s, "", "  "); err == nil {
-		_ = os.WriteFile(path, data, 0o644)
+		_ = writeFileAtomic(path, data, 0o644)
 	}
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -268,5 +269,39 @@ func TestSameFileContent(t *testing.T) {
 	}
 	if sameFileContent(a, filepath.Join(dir, "missing.bin")) {
 		t.Fatal("missing file reported identical")
+	}
+}
+
+func TestTooBigVideoIsFlagged(t *testing.T) {
+	page := `<div class="tgme_widget_message" data-post="mychan/4001">
+	  <a class="tgme_widget_message_video_player blured js-message_video_player" href="https://t.me/mychan/4001">
+	    <i class="tgme_widget_message_video_thumb" style="background-image:url('https://cdn4.telesco.pe/file/big.jpg')"></i>
+	    <div class="message_media_not_supported_wrap"><div class="message_media_not_supported">
+	      <div class="message_media_not_supported_label">Media is too big</div>
+	      <span class="message_media_view_in_telegram">VIEW IN TELEGRAM</span>
+	    </div></div>
+	    <time class="time" datetime="2026-10-01T10:00:00+00:00">13:00</time>
+	  </a>
+	  <div class="tgme_widget_message_text">long one</div>
+	</div>`
+	msgs := ParseMessages(page)
+	if len(msgs) != 1 {
+		t.Fatalf("want 1 msg, got %d", len(msgs))
+	}
+	m := msgs[0]
+	if !m.TooBig || m.Video != "" || m.VideoThumb == "" {
+		t.Fatalf("too-big not flagged: %+v", m)
+	}
+	h := feedMediaHTML(m)
+	if !strings.Contains(h, "toobig") || strings.Contains(h, "playbtn") || strings.Contains(h, "embedwrap") {
+		t.Fatalf("too-big must render as a label, not a play button: %s", h)
+	}
+	if !IsTooBigPage(page) {
+		t.Fatal("IsTooBigPage should be true")
+	}
+	// A page that also carries an mp4 link is NOT too big.
+	withFile := page + `<a href="https://cdn4.telesco.pe/file/x.mp4?token=1">v</a>`
+	if IsTooBigPage(withFile) {
+		t.Fatal("page with an mp4 link must not count as too big")
 	}
 }

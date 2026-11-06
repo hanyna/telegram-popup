@@ -1,12 +1,12 @@
 package main
 
 import (
-	"os"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"

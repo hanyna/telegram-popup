@@ -70,7 +70,7 @@ func LoadConfig(path string) (Config, error) {
 			// Drop a starter file next to the executable so the user has
 			// something to edit instead of a cryptic error.
 			if data, mErr := json.MarshalIndent(cfg, "", "  "); mErr == nil {
-				_ = os.WriteFile(path, data, 0o644)
+				_ = writeFileAtomic(path, data, 0o644)
 			}
 		}
 		return cfg, err
@@ -137,8 +137,20 @@ func normalizeChannel(s string) string {
 	s = strings.TrimPrefix(s, "telegram.me/")
 	s = strings.TrimPrefix(s, "s/")
 	s = strings.TrimPrefix(s, "@")
-	if i := strings.IndexAny(s, "/?#"); i >= 0 {
+	if i := strings.IndexAny(s, "/?#\\"); i >= 0 {
 		s = s[:i]
+	}
+	// Telegram usernames are [A-Za-z0-9_], 4–32 chars. Anything else is not
+	// a channel — and must never reach a file path or a URL. (Length is not
+	// enforced beyond the URL-safe cap: tests and Telegram itself use short
+	// names.)
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_') {
+			return ""
+		}
+	}
+	if len(s) == 0 || len(s) > 32 {
+		return ""
 	}
 	return s
 }
@@ -182,6 +194,6 @@ func saveConfigTelegram(path string, appID int, appHash string) {
 	cfg.TelegramAppID = appID
 	cfg.TelegramAppHash = appHash
 	if data, mErr := json.MarshalIndent(cfg, "", "  "); mErr == nil {
-		_ = os.WriteFile(path, data, 0o644)
+		_ = writeFileAtomic(path, data, 0o644)
 	}
 }

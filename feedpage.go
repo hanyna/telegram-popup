@@ -211,6 +211,25 @@ const feedPage = `<!DOCTYPE html>
     box-shadow:0 14px 40px rgba(0,0,0,0.45); padding:6px; min-width:210px;
   }
   #moremenu.open { display:block; }
+  /* media filter chips */
+  #filters { display:none; gap:6px; padding:8px 14px 0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  #filters::-webkit-scrollbar { display:none; }
+  .fchip { flex:none; }
+  #filters.open { display:flex; }
+  .fchip { font-size:12.5px; padding:5px 12px; border-radius:99px; border:1px solid var(--line); cursor:pointer; color:var(--muted); user-select:none; }
+  .fchip.on { background:rgba(55,174,226,0.15); color:var(--accent); border-color:rgba(55,174,226,0.4); }
+  .msg.fhide { display:none; }
+  /* message action sheet (long press / right click) */
+  #msgsheet { position:fixed; left:0; right:0; bottom:0; z-index:46; display:none; background:var(--panel);
+    border-top:1px solid var(--line); border-radius:18px 18px 0 0; padding:8px 8px calc(10px + env(safe-area-inset-bottom));
+    box-shadow:0 -10px 40px rgba(0,0,0,0.45); }
+  #msgsheet.open { display:block; }
+  #sheetback { position:fixed; inset:0; z-index:45; display:none; background:rgba(0,0,0,0.35); }
+  #sheetback.open { display:block; }
+  .sitem { display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:12px; font-size:15px; cursor:pointer; }
+  .sitem:hover { background:rgba(55,174,226,0.12); }
+  .sitem .mi { width:24px; text-align:center; }
+  @media (min-width:681px) { #msgsheet { left:50%; right:auto; bottom:auto; top:50%; transform:translate(-50%,-50%); width:320px; border-radius:16px; border:1px solid var(--line); } }
   .mitem {
     display:flex; align-items:center; gap:10px; padding:10px 12px;
     border-radius:10px; font-size:13.5px; cursor:pointer; user-select:none;
@@ -353,13 +372,14 @@ const feedPage = `<!DOCTYPE html>
     margin-bottom:10px;
     max-width:86%;
     box-shadow:0 2px 10px rgba(0,0,0,0.18);
-    animation:rise 0.22s ease-out;
     /* Off-screen bubbles skip layout & paint entirely — with hundreds of
        messages loaded this is the difference between smooth and sluggish. */
     content-visibility:auto;
     contain-intrinsic-size:auto 140px;
   }
-  .msg.fresh { box-shadow:0 0 0 1px rgba(55,174,226,0.5), 0 6px 24px rgba(55,174,226,0.15); }
+  /* Only a message that just arrived animates in — switching channels used
+     to replay the entrance on every one of hundreds of bubbles. */
+  .msg.fresh { box-shadow:0 0 0 1px rgba(55,174,226,0.5), 0 6px 24px rgba(55,174,226,0.15); animation:rise 0.22s ease-out; }
   .msg.hidden { display:none; }
   @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
@@ -372,7 +392,10 @@ const feedPage = `<!DOCTYPE html>
   body.single .msgchan { display:none; }
   .msgtime { color:var(--muted); direction:ltr; }
 
-  .msgtext { font-size:14px; line-height:1.6; word-wrap:break-word; overflow-wrap:anywhere; unicode-bidi:plaintext; }
+  :root { --txt:14px; }
+  body.txt-l { --txt:16px; }
+  body.txt-xl { --txt:18.5px; }
+  .msgtext { font-size:var(--txt); line-height:1.6; word-wrap:break-word; overflow-wrap:anywhere; unicode-bidi:plaintext; }
   .rowprev, .linktitle, .linkdesc, .docname, .pollq, .pollmeta span { unicode-bidi:plaintext; }
   .msgtext a { color:#5cb8ff; text-decoration:none; border-bottom:1px solid rgba(92,184,255,0.35); }
 
@@ -410,6 +433,33 @@ const feedPage = `<!DOCTYPE html>
     border:none; background:#0d1120;
   }
   .embedwrap { cursor:pointer; }
+  /* digest ("מה היה היום") */
+  #digestback { position:fixed; inset:0; background:var(--bg); z-index:45; display:none; flex-direction:column; }
+  #digestback.open { display:flex; }
+  .dhead { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .dhead h2 { font-size:16px; margin:0; flex:1; }
+  .dtabs { display:flex; gap:6px; padding:10px 16px 0; }
+  .dtab { font-size:13px; padding:6px 14px; border-radius:99px; border:1px solid var(--line); cursor:pointer; color:var(--muted); }
+  .dtab.on { background:rgba(55,174,226,0.15); color:var(--accent); border-color:rgba(55,174,226,0.4); }
+  #dlist { flex:1; overflow-y:auto; padding:10px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .dchan { margin:14px 0 6px; display:flex; align-items:center; gap:8px; font-weight:700; font-size:14px; }
+  .dchan .ava { width:26px; height:26px; font-size:11px; }
+  .dchan .cnt { font-weight:400; color:var(--muted); font-size:12px; }
+  .drow { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:13.5px; line-height:1.45; }
+  .drow:hover { background:rgba(55,174,226,0.06); }
+  .drow .dt { flex:none; color:var(--dim); font-size:12px; direction:ltr; min-width:40px; padding-top:2px; }
+  .drow .dx { flex:1; min-width:0; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; unicode-bidi:plaintext; }
+  .drow .dm { flex:none; font-size:14px; }
+  .dempty { text-align:center; color:var(--muted); padding:40px 0; }
+  .toobig { display:block; position:relative; text-decoration:none; color:inherit; }
+  .toobig img { filter:brightness(0.55); }
+  .toobiglabel {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:4px; text-align:center; padding:12px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.7);
+  }
+  .toobiglabel b { font-size:15px; }
+  .toobiglabel span { font-size:12px; opacity:0.9; }
+  .toobiglabel::before { content:'🔒'; font-size:26px; margin-bottom:4px; }
   .vidready { box-shadow:0 0 0 2px rgba(49,196,141,0.7), 0 0 22px rgba(49,196,141,0.35); }
   .vidready .playbtn { background:rgba(20,120,80,0.8); border-color:#fff; }
 
@@ -729,6 +779,8 @@ const feedPage = `<!DOCTYPE html>
         <div class="iconbtn" id="kwbtn" role="button" tabindex="0" title="מילות מפתח להתראות" aria-label="מילות מפתח להתראות">⚙️</div>
         <div class="iconbtn" id="themebtn" role="button" tabindex="0" title="מצב בהיר/כהה" aria-label="מצב בהיר/כהה">🌓</div>
         <div class="iconbtn keep" id="searchbtn" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון">🔍</div>
+        <div class="iconbtn" id="filterbtn" role="button" tabindex="0" title="סינון לפי סוג" aria-label="סינון">⚗️</div>
+        <div class="iconbtn keep" id="digestbtn" role="button" tabindex="0" title="מה פספסתי / מה היה היום" aria-label="תקציר">📋</div>
         <div class="iconbtn keep" id="refreshbtn" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו">⟳</div>
         <div class="iconbtn" id="tglmute" role="button" tabindex="0" style="display:none">🔔</div>
         <div class="iconbtn" id="tglpopups" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות">🖥️</div>
@@ -751,6 +803,13 @@ const feedPage = `<!DOCTYPE html>
       <span id="statusmore" title="פירוט לפי ערוץ">פירוט</span>
     </div>
     <div id="statuspanel" style="display:none"></div>
+    <div id="filters" role="group" aria-label="סינון">
+      <span class="fchip on" data-f="all">הכל</span>
+      <span class="fchip" data-f="text">טקסט</span>
+      <span class="fchip" data-f="photo">תמונות</span>
+      <span class="fchip" data-f="video">סרטונים</span>
+      <span class="fchip" data-f="voice">קול</span>
+    </div>
     <div id="chat">
       <div id="topload"><span class="spin"></span>טוען הודעות ישנות…</div>
       <div id="wakehint"></div>
@@ -773,6 +832,20 @@ const feedPage = `<!DOCTYPE html>
   <div id="lbcount" style="display:none"></div>
 </div>
 
+<div id="sheetback"></div>
+<div id="msgsheet" role="menu"></div>
+<div id="digestback" role="dialog" aria-modal="true" aria-labelledby="dtitle">
+  <div class="dhead">
+    <div class="iconbtn" id="dclose" role="button" tabindex="0" title="סגור" aria-label="סגור">✕</div>
+    <h2 id="dtitle">מה היה היום</h2>
+  </div>
+  <div class="dtabs">
+    <span class="dtab on" data-mode="unread">מאז שקראתי</span>
+    <span class="dtab" data-mode="today">היום</span>
+    <span class="dtab" data-mode="yesterday">אתמול</span>
+  </div>
+  <div id="dlist"></div>
+</div>
 <div class="modal-back" id="kwback">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="kwtitle">
     <h3 id="kwtitle">מילות מפתח להתראות</h3>
@@ -827,6 +900,74 @@ const feedPage = `<!DOCTYPE html>
   var channelsLocked = false; // locked list: no add button, no remove ✕
   var unread = {};      // channel -> count
   var unreadFirst = {}; // channel -> key of the first message that arrived unseen
+  // Read position per channel, kept on the device: the newest message
+  // timestamp you have actually had on screen. Survives reloads, so the
+  // badges and the "הודעות חדשות" line pick up where you left off, even
+  // after closing the app for hours.
+  var readUpTo = {};
+  try { readUpTo = JSON.parse(localStorage.getItem('tgpopup-read') || '{}') || {}; } catch (e) { readUpTo = {}; }
+  var readSaveTimer = null;
+  function saveRead() {
+    if (readSaveTimer) return;
+    readSaveTimer = setTimeout(function () {
+      readSaveTimer = null;
+      try { localStorage.setItem('tgpopup-read', JSON.stringify(readUpTo)); } catch (e) {}
+    }, 400);
+  }
+  // Mark everything currently on screen (in the active view) as read.
+  function markReadVisible() {
+    if (document.hidden || searchOpen) return;
+    var top = chat.getBoundingClientRect().top, bottom = top + chat.clientHeight;
+    var nodes = msgs.querySelectorAll('.msg:not(.hidden)');
+    var changed = false;
+    // Walk from the bottom: the first node whose top is inside the viewport
+    // is the newest one you can see; everything older counts as read.
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      var r = nodes[i].getBoundingClientRect();
+      if (r.top < bottom && r.bottom > top) {
+        var ts = parseInt(nodes[i].getAttribute('data-ts') || '0', 10);
+        var ch = nodes[i].getAttribute('data-channel');
+        if (!ts) break;
+        if (current === 'all') {
+          // In the combined view, seeing a message means you also saw every
+          // older one of every channel above it.
+          channels.forEach(function (c) {
+            var lm = newestVisibleTs(c.name, ts);
+            if (lm && (!readUpTo[c.name] || lm > readUpTo[c.name])) { readUpTo[c.name] = lm; changed = true; }
+          });
+        } else if (!readUpTo[ch] || ts > readUpTo[ch]) {
+          readUpTo[ch] = ts; changed = true;
+        }
+        break;
+      }
+    }
+    if (changed) { saveRead(); recountUnread(); renderSidebar(); }
+  }
+  // Newest timestamp of a channel's loaded messages that is <= limit.
+  function newestVisibleTs(ch, limit) {
+    var best = 0;
+    var ns = msgs.querySelectorAll('.msg[data-channel="' + ch + '"]');
+    for (var i = ns.length - 1; i >= 0; i--) {
+      var t = parseInt(ns[i].getAttribute('data-ts') || '0', 10);
+      if (t && t <= limit) { best = t; break; }
+    }
+    return best;
+  }
+  // Recompute badges from the read positions (after boot, resync, markRead).
+  function recountUnread() {
+    channels.forEach(function (c) {
+      var n = 0, first = null;
+      var r = readUpTo[c.name] || 0;
+      var ns = msgs.querySelectorAll('.msg[data-channel="' + c.name + '"]');
+      for (var i = 0; i < ns.length; i++) {
+        var t = parseInt(ns[i].getAttribute('data-ts') || '0', 10);
+        if (t > r) { n++; if (!first) first = ns[i].id.slice(1); }
+      }
+      unread[c.name] = n;
+      if (n) { if (!unreadFirst[c.name]) unreadFirst[c.name] = first; }
+      else delete unreadFirst[c.name];
+    });
+  }
   var lastMsg = {};     // channel -> {ts, preview}
   var oldestPer = {};   // channel -> smallest loaded id
   var donePer = {};     // channel -> no more history
@@ -979,6 +1120,7 @@ const feedPage = `<!DOCTYPE html>
     ordered.forEach(function (ch) {
       var row = document.createElement('div');
       row.className = 'row' + (current === ch.name ? ' active' : '') + (ch.pinned ? ' pinned' : '');
+      row.setAttribute('data-chan', ch.name);
 
       var ava = document.createElement('div');
       ava.className = 'ava';
@@ -1072,6 +1214,22 @@ const feedPage = `<!DOCTYPE html>
     });
   }
 
+  // "עודכן לפני…": when the page last heard from the server. Tells you at a
+  // glance whether what you see is live or a cached snapshot.
+  var lastUpdateAt = 0, fromCache = false;
+  function touchFresh() { lastUpdateAt = Date.now(); fromCache = false; }
+  function freshLabel(sep) {
+    if (fromCache) return sep + 'מהמטמון — מתעדכן…';
+    if (!lastUpdateAt) return '';
+    var s = Math.floor((Date.now() - lastUpdateAt) / 1000);
+    if (s < 20) return sep + 'עודכן עכשיו';
+    if (s < 60) return sep + 'עודכן לפני ' + s + ' שנ׳';
+    var m = Math.floor(s / 60);
+    if (m < 60) return sep + 'עודכן לפני ' + m + ' דק׳';
+    return sep + 'עודכן לפני ' + Math.floor(m / 60) + ' שע׳';
+  }
+  setInterval(function () { if (!document.hidden) renderHead(); }, 30000);
+
   function renderHead() {
     var ava = document.getElementById('headava');
     var muteBtn = document.getElementById('tglmute');
@@ -1081,14 +1239,14 @@ const feedPage = `<!DOCTYPE html>
       ava.style.background = 'linear-gradient(135deg,#37aee2,#1e88d2)';
       ava.textContent = '✦';
       document.getElementById('headtitle').textContent = 'כל הערוצים';
-      document.getElementById('headsub').textContent = n ? n + ' הודעות נטענו' : '';
+      document.getElementById('headsub').textContent = (n ? n + ' הודעות' : '') + freshLabel(n ? ' · ' : '');
       muteBtn.style.display = 'none';
     } else {
       var ch = chanByName(current);
       ava.innerHTML = '';
       avaStyle(ava, ch || current);
       document.getElementById('headtitle').textContent = (ch && ch.title) || ('@' + current);
-      document.getElementById('headsub').textContent = '@' + current + (n ? ' · ' + n + ' הודעות' : '');
+      document.getElementById('headsub').textContent = '@' + current + (n ? ' · ' + n + ' הודעות' : '') + freshLabel(' · ');
       var isMuted = !!(ch && ch.muted);
       muteBtn.textContent = isMuted ? '🔕' : '🔔';
       muteBtn.className = 'iconbtn' + (isMuted ? ' off' : '');
@@ -1130,8 +1288,7 @@ const feedPage = `<!DOCTYPE html>
   function select(ch) {
     if (ch !== current) scrollPos[current] = chat.scrollTop; // remember where you were
     current = ch;
-    if (ch === 'all') { channels.forEach(function (c) { unread[c.name] = 0; }); }
-    else unread[ch] = 0;
+    try { localStorage.setItem('tgpopup-channel', ch); } catch (e) {}
     // Toggle only the 'single' class — never reset className, or the active
     // theme ('light') would be wiped every time you switch channels.
     document.body.classList.toggle('single', ch !== 'all');
@@ -1152,18 +1309,18 @@ const feedPage = `<!DOCTYPE html>
     // read forward naturally instead of hunting for where you left off.
     var old = document.getElementById('unreadline');
     if (old) old.remove();
-    var anchorKey = (ch !== 'all') && unreadFirst[ch];
-    delete unreadFirst[ch];
-    if (ch === 'all') { unreadFirst = {}; }
+    var anchorKey = firstUnreadKey(ch);
     if (anchorKey) {
       var anchor = document.getElementById('m' + anchorKey);
       if (anchor) {
         var line = document.createElement('div');
         line.className = 'unreadline';
         line.id = 'unreadline';
-        line.textContent = 'הודעות חדשות';
+        var cnt = ch === 'all' ? totalUnreadCount() : (unread[ch] || 0);
+        line.textContent = cnt > 1 ? cnt + ' הודעות חדשות' : 'הודעות חדשות';
         msgs.insertBefore(line, anchor);
         line.scrollIntoView({ block: 'center' });
+        setTimeout(markReadVisible, 250);
         return;
       }
     }
@@ -1174,13 +1331,30 @@ const feedPage = `<!DOCTYPE html>
     } else {
       scrollBottom(true);
     }
+    setTimeout(markReadVisible, 250);
+  }
+  function totalUnreadCount() {
+    var t = 0; channels.forEach(function (c) { t += unread[c.name] || 0; }); return t;
+  }
+  // The oldest unread message in the view: by timestamp across channels in
+  // "all", or the channel's own first unread.
+  function firstUnreadKey(ch) {
+    if (ch !== 'all') return unreadFirst[ch] || null;
+    var bestKey = null, bestTs = 0;
+    channels.forEach(function (c) {
+      var k = unreadFirst[c.name]; if (!k) return;
+      var n = document.getElementById('m' + k); if (!n) return;
+      var t = parseInt(n.getAttribute('data-ts') || '0', 10);
+      if (!bestKey || t < bestTs) { bestKey = k; bestTs = t; }
+    });
+    return bestKey;
   }
 
   // ----- date separators ----------------------------------------------------
   function rebuildSeparators() {
     var seps = msgs.querySelectorAll('.datesep');
     for (var i = 0; i < seps.length; i++) seps[i].remove();
-    var nodes = msgs.querySelectorAll('.msg:not(.hidden)');
+    var nodes = msgs.querySelectorAll('.msg:not(.hidden):not(.fhide)');
     var lastDay = '';
     for (var j = 0; j < nodes.length; j++) {
       var ts = parseInt(nodes[j].getAttribute('data-ts') || '0', 10);
@@ -1218,7 +1392,58 @@ const feedPage = `<!DOCTYPE html>
     if (!lm || it.ts >= lm.ts) lastMsg[it.channel] = { ts: it.ts, preview: it.preview };
   }
 
-  function makeNode(it) {
+  // ----- device snapshot: instant first paint ---------------------------------
+  // The newest ~120 items are kept in localStorage. On open they are drawn
+  // immediately — before the (possibly sleeping) server answers — so the
+  // app never opens on a blank screen. The server's answer then merges in.
+  var snapItems = {};
+  var snapTimer = null;
+  function rememberItem(it) {
+    if (!it || !it.key || !it.html) return;
+    snapItems[it.key] = { key: it.key, id: it.id, channel: it.channel, ts: it.ts, html: it.html, preview: it.preview, seq: it.seq };
+    if (snapTimer) return;
+    snapTimer = setTimeout(saveSnapshot, 1500);
+  }
+  function saveSnapshot() {
+    snapTimer = null;
+    var arr = Object.keys(snapItems).map(function (k) { return snapItems[k]; });
+    arr.sort(function (a, b) { return (b.ts - a.ts) || (b.id - a.id); });
+    arr = arr.slice(0, 120);
+    var keep = {}; arr.forEach(function (it) { keep[it.key] = it; }); snapItems = keep;
+    try {
+      var json = JSON.stringify({ at: Date.now(), items: arr });
+      if (json.length > 2500000) { arr = arr.slice(0, 60); json = JSON.stringify({ at: Date.now(), items: arr }); }
+      localStorage.setItem('tgpopup-snap', json);
+    } catch (e) {}
+  }
+  function paintSnapshot() {
+    var snap = null;
+    try { snap = JSON.parse(localStorage.getItem('tgpopup-snap') || 'null'); } catch (e) {}
+    if (!snap || !snap.items || !snap.items.length) return false;
+    var items = snap.items.slice().sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); });
+    clearSkeleton();
+    var frag = document.createDocumentFragment();
+    items.forEach(function (it) {
+      try {
+        if (document.getElementById('m' + it.key)) return;
+        var n = makeNode(it, true);
+        if (n) { frag.appendChild(n); applyClamp(n); }
+      } catch (e) {}
+    });
+    msgs.appendChild(frag);
+    fromCache = true;
+    lastUpdateAt = snap.at || 0;
+    rebuildSeparators();
+    recountUnread();
+    renderSidebar();
+    renderHead();
+    return true;
+  }
+
+  var itemMeta = {}; // key -> light record for the digest
+  function makeNode(it, fromSnap) {
+    if (!fromSnap) rememberItem(it);
+    itemMeta[it.key] = { key: it.key, id: it.id, channel: it.channel, ts: it.ts, preview: it.preview || '', text: it.text || '' };
     clearSkeleton();
     var holder = document.createElement('div');
     holder.innerHTML = it.html || '';
@@ -1387,6 +1612,26 @@ const feedPage = `<!DOCTYPE html>
     }
   }, true);
 
+  // Telegram refuses the file to anonymous clients: swap the play button
+  // for a clear label so nobody keeps tapping it.
+  function markTooBig(wrap, msg) {
+    if (!wrap) return;
+    wrap.classList.remove('embedwrap');
+    wrap.removeAttribute('data-loading');
+    wrap.classList.add('toobig');
+    var pb = wrap.querySelector('.playbtn'); if (pb) pb.remove();
+    var spin = wrap.querySelector('.spin'); if (spin) spin.remove();
+    if (!wrap.querySelector('.toobiglabel')) {
+      var l = document.createElement('div'); l.className = 'toobiglabel';
+      var b = document.createElement('b'); b.textContent = 'סרטון ארוך';
+      var sp = document.createElement('span'); sp.textContent = 'זמין לצפייה רק בתוך טלגרם';
+      l.appendChild(b); l.appendChild(sp); wrap.appendChild(l);
+    }
+    var art = wrap.closest('.msg');
+    var link = art ? art.querySelector('a.msgtime, .msghead a') : null;
+    if (msg) toast(msg);
+  }
+
   // Long videos: clicking the preview asks OUR server for the direct video
   // file and plays it in the page's own player. Fallback chain, all
   // automatic: direct CDN → streaming through the app → clear message.
@@ -1436,6 +1681,11 @@ const feedPage = `<!DOCTYPE html>
     fetch('/api/video?channel=' + encodeURIComponent(parts[0]) + '&id=' + parts[1])
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        if (d.toobig) {
+          // Telegram's final answer: relabel the frame, no retries.
+          markTooBig(wrap, d.error);
+          return;
+        }
         if (d.ok && d.big) {
           // Large video via the connected Telegram account — the proxy
           // downloads it server-side (may take a bit for big files).
@@ -1485,17 +1735,21 @@ const feedPage = `<!DOCTYPE html>
     }
     insertOrdered(node);
     applyClamp(node);
+    if (mediaFilter !== 'all' && itemKind(node) !== mediaFilter) node.classList.add('fhide');
     trimDom();
 
     var visible = (current === 'all' || it.channel === current);
     if (fresh) {
       if (visible && wasNear && !document.hidden) {
         scrollBottom(false);
+        setTimeout(markReadVisible, 300);
       } else if (visible) {
         pendingJump++; showJump();
+        if (!unreadFirst[it.channel]) unreadFirst[it.channel] = it.key;
+        unread[it.channel] = (unread[it.channel] || 0) + 1;
       } else {
         unread[it.channel] = (unread[it.channel] || 0) + 1;
-        // Remember where the unread run starts, for the "עד כאן קראת" line.
+        // Remember where the unread run starts, for the "הודעות חדשות" line.
         if (!unreadFirst[it.channel]) unreadFirst[it.channel] = it.key;
       }
       if (document.hidden) {
@@ -1545,11 +1799,13 @@ const feedPage = `<!DOCTYPE html>
   }
   document.getElementById('jump').onclick = function () { scrollBottom(false); hideJump(); };
   document.getElementById('downbtn').onclick = function () { scrollBottom(false); hideJump(); };
+  var readScrollTimer = null;
   chat.addEventListener('scroll', function () {
     var nb = nearBottom();
     if (nb) hideJump();
     document.getElementById('downbtn').style.display = nb ? 'none' : 'flex';
     if (chat.scrollTop < 70) maybeLoadOlder();
+    if (!readScrollTimer) readScrollTimer = setTimeout(function () { readScrollTimer = null; markReadVisible(); }, 350);
   }, { passive: true });
 
   document.addEventListener('visibilitychange', function () {
@@ -1558,6 +1814,7 @@ const feedPage = `<!DOCTYPE html>
       document.title = baseTitle;
       resync(); // pick up anything that arrived while the tab slept (cheap: only new seqs)
       ensureStream();
+      setTimeout(markReadVisible, 400);
     }
   });
 
@@ -1678,9 +1935,23 @@ const feedPage = `<!DOCTYPE html>
 
   // ----- boot ---------------------------------------------------------------
   // Each message renders in isolation: one bad post can never blank the page.
+  // Channels are remembered too, so the snapshot can draw with real names
+  // and avatars before the server is awake.
+  try {
+    var cachedCh = JSON.parse(localStorage.getItem('tgpopup-channels') || 'null');
+    if (cachedCh && cachedCh.length) { channels = cachedCh; renderSidebar(); }
+  } catch (e) {}
+  var painted = paintSnapshot();
+  if (painted) {
+    var want0 = 'all';
+    try { want0 = localStorage.getItem('tgpopup-channel') || 'all'; } catch (e) {}
+    if (want0 !== 'all' && !chanByName(want0)) want0 = 'all';
+    select(want0);
+  }
   fetch('/api/channels').then(function (r) { return r.json(); }).then(function (d) {
     channels = d.channels || [];
     channelsLocked = !!d.locked;
+    try { localStorage.setItem('tgpopup-channels', JSON.stringify(channels)); } catch (e) {}
     if (channelsLocked) {
       var aw = document.querySelector('.addwrap');
       if (aw) aw.style.display = 'none';
@@ -1692,6 +1963,7 @@ const feedPage = `<!DOCTYPE html>
     return r.json();
   }).then(function (data) {
     booted = true;
+    touchFresh();
     document.getElementById('wakehint').style.display = 'none';
     if (data.seq > lastSeq) lastSeq = data.seq;
     var items = (data.items || []).slice();
@@ -1702,17 +1974,35 @@ const feedPage = `<!DOCTYPE html>
     var frag = document.createDocumentFragment();
     items.forEach(function (it) {
       try {
-        if (document.getElementById('m' + it.key)) return;
+        if (document.getElementById('m' + it.key)) { rememberItem(it); return; }
+        if (painted) { insertNodeBottom(it); return; } // merge in order into the snapshot
         var n = makeNode(it);
         if (n) { frag.appendChild(n); applyClamp(n); }
       } catch (e) {}
     });
     msgs.appendChild(frag);
     rebuildSeparators();
-    renderEmptyState();
-    renderSidebar();
-    renderHead();
-    scrollBottom(true);
+    recountUnread();
+    // First visit ever: nothing is "unread" — everything already there was
+    // published before you started using the app on this device.
+    if (!Object.keys(readUpTo).length) {
+      channels.forEach(function (c) { var lm = newestVisibleTs(c.name, 1e12); if (lm) readUpTo[c.name] = lm; });
+      saveRead(); recountUnread();
+    }
+    if (painted) {
+      // Already on screen from the snapshot — keep the reader's place, just
+      // refresh the sidebar and follow the bottom if they were there.
+      var nb0 = nearBottom();
+      renderSidebar(); renderHead();
+      if (nb0) scrollBottom(true);
+      setTimeout(markReadVisible, 300);
+    } else {
+      var want = 'all';
+      try { want = localStorage.getItem('tgpopup-channel') || 'all'; } catch (e) {}
+      if (want !== 'all' && !chanByName(want)) want = 'all';
+      select(want); // lands on the "הודעות חדשות" line when there is one
+    }
+    saveSnapshot();
     handleHashTarget(); // popup deep link: land on the exact message
   }).catch(function (e) {
     if (e && e.message === 'login') return;
@@ -1725,7 +2015,7 @@ const feedPage = `<!DOCTYPE html>
   // Cloud: a sleeping free-tier server takes up to a minute to answer the
   // first request. Say so instead of shimmering in silence.
   setTimeout(function () {
-    if (booted) return;
+    if (booted || painted) return;
     var w = document.getElementById('wakehint');
     w.textContent = 'השרת מתעורר משינה… זה לוקח בדרך כלל עד דקה, הדף יתמלא לבד.';
     w.style.display = 'block';
@@ -1850,6 +2140,8 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('searchclose').onclick = closeSearch;
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
+      if (document.getElementById('msgsheet').classList.contains('open')) { closeSheet(); return; }
+      if (document.getElementById('digestback').classList.contains('open')) { closeDigest(); return; }
       if (document.getElementById('moremenu').classList.contains('open')) { closeMore(); return; }
       if (document.getElementById('kwback').style.display === 'flex') { document.getElementById('kwback').style.display = 'none'; return; }
       if (document.getElementById('modalback').style.display === 'flex') { closeModal(); return; }
@@ -2220,6 +2512,214 @@ const feedPage = `<!DOCTYPE html>
 
   // ----- "more" menu (narrow screens) ---------------------------------------
   function closeMore() { document.getElementById('moremenu').classList.remove('open'); }
+  // ----- media filter ---------------------------------------------------------
+  var mediaFilter = 'all';
+  function itemKind(node) {
+    if (node.querySelector('.voicebox')) return 'voice';
+    if (node.querySelector('video, .embedwrap, .toobig, .roundwrap')) return 'video';
+    if (node.querySelector('.photo img, .album, .stickerbox')) return 'photo';
+    return 'text';
+  }
+  function applyFilter() {
+    var nodes = msgs.querySelectorAll('.msg');
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      n.classList.toggle('fhide', mediaFilter !== 'all' && itemKind(n) !== mediaFilter);
+    }
+    document.querySelectorAll('.fchip').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-f') === mediaFilter); });
+    var fb = document.getElementById('filterbtn');
+    fb.className = 'iconbtn' + (mediaFilter !== 'all' ? ' on' : '');
+    rebuildSeparators();
+  }
+  document.querySelectorAll('.fchip').forEach(function (c) {
+    c.onclick = function () { mediaFilter = c.getAttribute('data-f'); applyFilter(); };
+  });
+  document.getElementById('filterbtn').onclick = function () {
+    var f = document.getElementById('filters');
+    f.classList.toggle('open');
+    if (!f.classList.contains('open') && mediaFilter !== 'all') { mediaFilter = 'all'; applyFilter(); }
+  };
+
+  // ----- text size --------------------------------------------------------
+  var txtSizes = ['', 'txt-l', 'txt-xl'];
+  var txtIdx = 0;
+  try { txtIdx = parseInt(localStorage.getItem('tgpopup-txt') || '0', 10) || 0; } catch (e) {}
+  function applyTxt() {
+    document.body.classList.remove('txt-l', 'txt-xl');
+    if (txtSizes[txtIdx]) document.body.classList.add(txtSizes[txtIdx]);
+    try { localStorage.setItem('tgpopup-txt', String(txtIdx)); } catch (e) {}
+  }
+  function cycleTxt() { txtIdx = (txtIdx + 1) % txtSizes.length; applyTxt(); toast(['גודל טקסט רגיל', 'גודל טקסט גדול', 'גודל טקסט גדול מאוד'][txtIdx]); }
+  applyTxt();
+
+  // ----- message actions: long press / right click ---------------------------
+  var sheetFor = null;
+  function openSheet(node) {
+    sheetFor = node;
+    var key = (node.id || '').slice(1);
+    var meta = itemMeta[key] || {};
+    var ch = chanByName(meta.channel || node.getAttribute('data-channel'));
+    var sheet = document.getElementById('msgsheet');
+    sheet.innerHTML = '';
+    function it(icon, label, fn) {
+      var d = document.createElement('div'); d.className = 'sitem'; d.setAttribute('role', 'menuitem');
+      var i = document.createElement('span'); i.className = 'mi'; i.textContent = icon;
+      var t = document.createElement('span'); t.textContent = label;
+      d.appendChild(i); d.appendChild(t);
+      d.onclick = function () { closeSheet(); fn(); };
+      sheet.appendChild(d);
+    }
+    var text = (meta.text || meta.preview || (node.querySelector('.msgtext') || {}).textContent || '').trim();
+    var link = 'https://t.me/' + (meta.channel || '') + '/' + (meta.id || '');
+    it('📋', 'העתק טקסט', function () { copyText(text, 'הטקסט הועתק'); });
+    it('🔗', 'העתק קישור לפוסט', function () { copyText(link, 'הקישור הועתק'); });
+    if (navigator.share) it('📤', 'שתף…', function () { navigator.share({ title: (ch && ch.title) || '', text: text, url: link }).catch(function () {}); });
+    if (ch) {
+      it(ch.pinned ? '📌' : '📍', ch.pinned ? 'בטל נעיצה של הערוץ' : 'נעץ את הערוץ למעלה', function () { setPin(ch, !ch.pinned); });
+      it(ch.muted ? '🔔' : '🔕', ch.muted ? 'בטל השתקה לערוץ' : 'השתק התראות מהערוץ', function () { select(ch.name); document.getElementById('tglmute').click(); });
+      if (current === 'all') it('👁', 'הצג רק את הערוץ הזה', function () { select(ch.name); });
+    }
+    it('🔠', 'גודל טקסט', cycleTxt);
+    document.getElementById('sheetback').classList.add('open');
+    sheet.classList.add('open');
+  }
+  function closeSheet() {
+    document.getElementById('sheetback').classList.remove('open');
+    document.getElementById('msgsheet').classList.remove('open');
+    sheetFor = null;
+  }
+  document.getElementById('sheetback').onclick = closeSheet;
+  function copyText(t, okMsg) {
+    if (!t) { toast('אין מה להעתיק'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { toast(okMsg); }, function () { fallbackCopy(t, okMsg); });
+    } else fallbackCopy(t, okMsg);
+  }
+  function fallbackCopy(t, okMsg) {
+    var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast(okMsg); } catch (e) { toast('ההעתקה נכשלה'); }
+    ta.remove();
+  }
+  function setPin(ch, target) {
+    fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: ch.name, pinned: target }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { toast(d.error || 'שגיאה'); return; }
+        ch.pinned = d.pinned; renderSidebar();
+        toast(d.pinned ? 'הערוץ ננעץ לראש הרשימה' : 'הנעיצה בוטלה');
+      }).catch(function () { toast('שגיאת תקשורת'); });
+  }
+  // Long press (touch) and right click (mouse) on a bubble.
+  var lpTimer = null, lpStart = null;
+  chat.addEventListener('touchstart', function (ev) {
+    var node = ev.target.closest ? ev.target.closest('.msg') : null;
+    if (!node || ev.target.closest('video, audio, a, button')) return;
+    var t = ev.touches[0]; lpStart = { x: t.clientX, y: t.clientY };
+    lpTimer = setTimeout(function () { lpTimer = null; if (navigator.vibrate) navigator.vibrate(12); openSheet(node); }, 520);
+  }, { passive: true });
+  chat.addEventListener('touchmove', function (ev) {
+    if (!lpTimer || !lpStart) return;
+    var t = ev.touches[0];
+    if (Math.abs(t.clientX - lpStart.x) > 10 || Math.abs(t.clientY - lpStart.y) > 10) { clearTimeout(lpTimer); lpTimer = null; }
+  }, { passive: true });
+  chat.addEventListener('touchend', function () { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }, { passive: true });
+  chat.addEventListener('contextmenu', function (ev) {
+    var node = ev.target.closest ? ev.target.closest('.msg') : null;
+    if (!node || ev.target.closest('video, audio, a')) return;
+    ev.preventDefault(); openSheet(node);
+  });
+  // Sidebar rows: long press = pin / mute sheet on touch devices.
+  var rowLp = null;
+  document.getElementById('chanlist').addEventListener('touchstart', function (ev) {
+    var row = ev.target.closest ? ev.target.closest('.row') : null;
+    if (!row || !row.getAttribute('data-chan')) return;
+    rowLp = setTimeout(function () {
+      rowLp = null;
+      var ch = chanByName(row.getAttribute('data-chan')); if (!ch) return;
+      var sheet = document.getElementById('msgsheet'); sheet.innerHTML = '';
+      function it(icon, label, fn) {
+        var d = document.createElement('div'); d.className = 'sitem';
+        var i = document.createElement('span'); i.className = 'mi'; i.textContent = icon;
+        var t = document.createElement('span'); t.textContent = label;
+        d.appendChild(i); d.appendChild(t); d.onclick = function () { closeSheet(); fn(); }; sheet.appendChild(d);
+      }
+      it(ch.pinned ? '📌' : '📍', ch.pinned ? 'בטל נעיצה' : 'נעץ למעלה', function () { setPin(ch, !ch.pinned); });
+      it(ch.muted ? '🔔' : '🔕', ch.muted ? 'בטל השתקה' : 'השתק התראות', function () { select(ch.name); document.getElementById('tglmute').click(); });
+      it('⤵', 'קפוץ להודעה האחרונה', function () { select(ch.name); scrollBottom(true); });
+      if (navigator.vibrate) navigator.vibrate(12);
+      document.getElementById('sheetback').classList.add('open'); sheet.classList.add('open');
+    }, 520);
+  }, { passive: true });
+  document.getElementById('chanlist').addEventListener('touchend', function () { if (rowLp) { clearTimeout(rowLp); rowLp = null; } }, { passive: true });
+  document.getElementById('chanlist').addEventListener('touchmove', function () { if (rowLp) { clearTimeout(rowLp); rowLp = null; } }, { passive: true });
+
+  // ----- digest: "מה היה היום" ----------------------------------------------
+  // A compact, text-only rundown of everything that came in, channel by
+  // channel, built from what the page already holds. Half a minute of
+  // skimming instead of scrolling through a day of bubbles.
+  var digestMode = 'unread';
+  function openDigest(mode) {
+    if (mode) digestMode = mode;
+    document.querySelectorAll('.dtab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-mode') === digestMode); });
+    var list = document.getElementById('dlist');
+    list.innerHTML = '';
+    var now = new Date();
+    var dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+    var from = 0, to = 1e12;
+    if (digestMode === 'today') from = dayStart;
+    else if (digestMode === 'yesterday') { from = dayStart - 86400; to = dayStart; }
+    var byChan = {};
+    Object.keys(itemMeta).forEach(function (k) {
+      var it = itemMeta[k];
+      if (!it.ts) return;
+      if (digestMode === 'unread') { if (it.ts <= (readUpTo[it.channel] || 0)) return; }
+      else if (it.ts < from || it.ts >= to) return;
+      (byChan[it.channel] = byChan[it.channel] || []).push(it);
+    });
+    var order = channels.map(function (c) { return c.name; });
+    Object.keys(byChan).forEach(function (c) { if (order.indexOf(c) < 0) order.push(c); });
+    var total = 0;
+    order.forEach(function (name) {
+      var arr = byChan[name]; if (!arr || !arr.length) return;
+      arr.sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); });
+      total += arr.length;
+      var ch = chanByName(name);
+      var h = document.createElement('div'); h.className = 'dchan';
+      var av = document.createElement('div'); av.className = 'ava'; avaStyle(av, ch || name);
+      var nm = document.createElement('span'); nm.textContent = (ch && ch.title) || ('@' + name);
+      var cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = arr.length + ' הודעות';
+      h.appendChild(av); h.appendChild(nm); h.appendChild(cnt);
+      list.appendChild(h);
+      arr.forEach(function (it) {
+        var row = document.createElement('div'); row.className = 'drow';
+        var dt = document.createElement('span'); dt.className = 'dt'; dt.textContent = fmtTime(it.ts);
+        var dx = document.createElement('span'); dx.className = 'dx';
+        var txt = (it.text || it.preview || '').replace(/\s+/g, ' ').trim();
+        var icon = '';
+        if (/^🎬|^📹|^🎥/.test(it.preview || '')) icon = '🎬';
+        else if (/^📷|^🖼/.test(it.preview || '')) icon = '📷';
+        else if (/^🎤/.test(it.preview || '')) icon = '🎤';
+        if (!txt) txt = it.preview || '';
+        dx.textContent = txt.length > 220 ? txt.slice(0, 220) + '…' : txt;
+        row.appendChild(dt); row.appendChild(dx);
+        if (icon) { var dm = document.createElement('span'); dm.className = 'dm'; dm.textContent = icon; row.appendChild(dm); }
+        row.onclick = function () { closeDigest(); gotoMessage(it.channel, it.id); };
+        list.appendChild(row);
+      });
+    });
+    if (!total) {
+      var e = document.createElement('div'); e.className = 'dempty';
+      e.textContent = digestMode === 'unread' ? 'אין הודעות חדשות מאז שקראת 👌' : 'לא נמצאו הודעות בתקופה הזאת';
+      list.appendChild(e);
+    }
+    document.getElementById('dtitle').textContent = digestMode === 'unread' ? 'מה פספסתי' : (digestMode === 'today' ? 'מה היה היום' : 'מה היה אתמול');
+    document.getElementById('digestback').classList.add('open');
+  }
+  function closeDigest() { document.getElementById('digestback').classList.remove('open'); }
+  document.getElementById('dclose').onclick = closeDigest;
+  document.getElementById('digestbtn').onclick = function () { openDigest(); };
+  document.querySelectorAll('.dtab').forEach(function (t) { t.onclick = function () { openDigest(t.getAttribute('data-mode')); }; });
+
   function buildMoreMenu() {
     var m = document.getElementById('moremenu');
     m.innerHTML = '';
@@ -2232,6 +2732,9 @@ const feedPage = `<!DOCTYPE html>
       d.onclick = function () { closeMore(); fn(); };
       m.appendChild(d);
     }
+    item('📋', 'מה פספסתי / מה היה היום', function () { openDigest(); });
+    item('🔠', 'גודל טקסט', cycleTxt);
+    item('⚗️', 'סינון לפי סוג', function () { document.getElementById('filterbtn').click(); });
     item(theme === 'light' ? '🌙' : '🌓', 'מצב בהיר / כהה', function () { document.getElementById('themebtn').click(); });
     if (current !== 'all') {
       var ch = chanByName(current);
@@ -2310,6 +2813,7 @@ const feedPage = `<!DOCTYPE html>
       return r.json();
     }).then(function (data) {
       resyncing = null;
+      touchFresh();
       if (data.seq > lastSeq) lastSeq = data.seq;
       var items = (data.items || []).slice();
       items.sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); });
@@ -2319,22 +2823,17 @@ const feedPage = `<!DOCTYPE html>
         if (!document.getElementById('m' + it.key)) {
           insertNodeBottom(it);
           added++;
-          // A resync is how missed live posts arrive — count them unread
-          // exactly like a stream event would.
-          var visible = (current === 'all' || it.channel === current);
-          if (booted && !visible) {
-            unread[it.channel] = (unread[it.channel] || 0) + 1;
-            if (!unreadFirst[it.channel]) unreadFirst[it.channel] = it.key;
-          }
+          // Unread state is recomputed from the read positions below.
         }
       });
       if (added) {
         trimDom();
         rebuildSeparators();
+        recountUnread();
         renderEmptyState();
         renderSidebar();
         renderHead();
-        if (wasNear) scrollBottom(true);
+        if (wasNear) { scrollBottom(true); setTimeout(markReadVisible, 300); }
       }
       return added;
     }).catch(function () { resyncing = null; return 0; });
@@ -2429,6 +2928,7 @@ const feedPage = `<!DOCTYPE html>
   setInterval(function () { if (!document.hidden) resync(); }, 120000);
   openStream();
   function onStreamMessage(ev) {
+    touchFresh();
     try {
       if (ev.lastEventId) { var sq = parseInt(ev.lastEventId, 10); if (sq > lastSeq) lastSeq = sq; }
       var d = JSON.parse(ev.data);
@@ -2444,6 +2944,11 @@ const feedPage = `<!DOCTYPE html>
       }
       if (d.type === 'goto') {
         gotoMessage(d.channel, d.id);
+        return;
+      }
+      if (d.type === 'videotoobig') {
+        var w2 = document.querySelector('#m' + d.channel + '_' + d.id + ' .embedwrap');
+        if (w2) markTooBig(w2, '');
         return;
       }
       if (d.type === 'videoready') {

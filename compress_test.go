@@ -80,7 +80,9 @@ func TestAcceptsGzip(t *testing.T) {
 
 func TestMediaRedirect(t *testing.T) {
 	f := NewFeed()
-	f.ResolveVideo = func(channel string, id int) (string, error) { return "https://cdn4.telesco.pe/file/v.mp4?token=abc", nil }
+	f.ResolveVideo = func(channel string, id int) (string, error) {
+		return "https://cdn4.telesco.pe/file/v.mp4?token=abc", nil
+	}
 	url, err := f.Start(0)
 	if err != nil {
 		t.Fatal(err)
