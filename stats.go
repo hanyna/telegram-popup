@@ -143,7 +143,15 @@ func (f *Feed) handleStats(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	active := len(f.clients)
 	f.mu.Unlock()
-	_ = json.NewEncoder(w).Encode(f.stats.snapshot(active))
+	snap := f.stats.snapshot(active)
+	// In claim-mode (no env key), hand the admin a link that unlocks the
+	// panel on another of their devices (phone, etc.).
+	if f.AdminKey == "" && f.admin != nil {
+		if tok := f.admin.token(); tok != "" {
+			snap["unlockPath"] = "/?admin=" + tok
+		}
+	}
+	_ = json.NewEncoder(w).Encode(snap)
 }
 
 // ensureDeviceID reads or sets an anonymous device cookie, used only to count

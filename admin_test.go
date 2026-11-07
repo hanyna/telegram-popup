@@ -87,3 +87,77 @@ func TestAdminUnlockViaHandlePage(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminClaimFlow(t *testing.T) {
+	dir := t.TempDir()
+	f := NewFeed()
+	f.BindAddr = "0.0.0.0" // cloud
+	f.AdminKey = ""        // no env key -> claim mode
+	f.admin = newAdminStore(dir + "/admin.json")
+	f.stats = newStatsStore("")
+
+	// before claiming, nobody is admin
+	rec := httptest.NewRecorder()
+	f.handleStats(rec, httptest.NewRequest("GET", "/api/stats", nil))
+	if rec.Code != 403 {
+		t.Fatalf("pre-claim should forbid, got %d", rec.Code)
+	}
+
+	// first "?admin=claim" claims and sets the cookie
+	rec = httptest.NewRecorder()
+	if !f.handleAdminUnlock(rec, httptest.NewRequest("GET", "/?admin=claim", nil)) {
+		t.Fatal("unlock should handle claim")
+	}
+	var ck *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "tgpopup_admin" {
+			ck = c
+		}
+	}
+	if ck == nil || ck.Value == "" {
+		t.Fatal("claim must set an admin cookie")
+	}
+	tok := f.admin.token()
+	if tok == "" || ck.Value != tok {
+		t.Fatalf("cookie should equal the stored token")
+	}
+
+	// that cookie now grants stats
+	req := httptest.NewRequest("GET", "/api/stats", nil)
+	req.AddCookie(ck)
+	rec = httptest.NewRecorder()
+	f.handleStats(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("claimed admin should see stats, got %d", rec.Code)
+	}
+
+	// a reload of the store keeps the same token (persisted)
+	f2 := NewFeed()
+	f2.BindAddr = "0.0.0.0"
+	f2.admin = newAdminStore(dir + "/admin.json")
+	if f2.admin.token() != tok {
+		t.Fatal("token should survive reload")
+	}
+
+	// unlocking another device with the token link works
+	rec = httptest.NewRecorder()
+	f.handleAdminUnlock(rec, httptest.NewRequest("GET", "/?admin="+tok, nil))
+	got := ""
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "tgpopup_admin" {
+			got = c.Value
+		}
+	}
+	if got != tok {
+		t.Fatal("token link should set the admin cookie on another device")
+	}
+
+	// a wrong token does not
+	rec = httptest.NewRecorder()
+	f.handleAdminUnlock(rec, httptest.NewRequest("GET", "/?admin=wrongtoken", nil))
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "tgpopup_admin" {
+			t.Fatal("wrong token must not unlock")
+		}
+	}
+}

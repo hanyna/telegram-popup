@@ -63,6 +63,8 @@ type Feed struct {
 	reacts *reactStore
 	// Visit stats (see stats.go). nil until wired; handlers tolerate nil.
 	stats *statsStore
+	// Admin unlock when no env key is set (see admin.go).
+	admin *adminStore
 
 	// Wired in by main so the feed stays free of scanning/config logic.
 	FetchOlder    func(channel string, beforeID int) ([]Message, error)
@@ -115,11 +117,12 @@ func (f *Feed) isAdmin(r *http.Request) bool {
 	if f.BindAddr == "" {
 		return true // local machine = owner
 	}
-	if f.AdminKey == "" {
+	want := f.effectiveAdminToken()
+	if want == "" {
 		return false
 	}
 	c, err := r.Cookie("tgpopup_admin")
-	return err == nil && c.Value == adminToken(f.AdminKey)
+	return err == nil && c.Value == want
 }
 
 // SetChannelInfo records a channel's display name and photo. New or changed
@@ -394,15 +397,8 @@ func (f *Feed) handlePage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if f.AdminKey != "" {
-		if a := r.URL.Query().Get("admin"); a != "" {
-			if a == f.AdminKey {
-				http.SetCookie(w, &http.Cookie{Name: "tgpopup_admin", Value: adminToken(f.AdminKey), Path: "/",
-					MaxAge: 365 * 24 * 3600, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
-			}
-			http.Redirect(w, r, "/", http.StatusSeeOther) // strip ?admin from the URL
-			return
-		}
+	if f.handleAdminUnlock(w, r) {
+		return
 	}
 	if f.stats != nil {
 		f.stats.recordView(ensureDeviceID(w, r))

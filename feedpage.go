@@ -902,6 +902,7 @@ const feedPage = `<!DOCTYPE html>
     <div style="font-size:12px;color:var(--muted);margin-bottom:6px">7 הימים האחרונים</div>
     <div class="statbars" id="st_bars"></div>
     <div class="statnote" id="st_note"></div>
+    <button class="statclose" id="st_unlock" style="display:none;margin-top:10px;border-color:rgba(74,147,196,0.5);color:var(--accent)">📱 העתק קישור לפתיחה בטלפון</button>
     <button class="statclose" id="st_close">סגור</button>
   </div>
 </div>
@@ -2878,6 +2879,14 @@ const feedPage = `<!DOCTYPE html>
       var dl = document.createElement('div'); dl.className = 'dl'; dl.textContent = ['א','ב','ג','ד','ה','ו','ש'][day.getDay()];
       b.appendChild(bv); b.appendChild(fill); b.appendChild(dl); bars.appendChild(b);
     });
+    var ub = document.getElementById('st_unlock');
+    if (d.unlockPath) {
+      ub.style.display = 'block';
+      ub.onclick = function () {
+        var url = location.origin + d.unlockPath;
+        copyText(url, 'הקישור הועתק — פתח אותו בטלפון כדי לראות שם את הנתונים');
+      };
+    } else { ub.style.display = 'none'; }
     document.getElementById('st_note').textContent = isCloud
       ? 'הנתונים נשמרים בשרת. בתוכנית החינמית של Render הם עשויים להתאפס בעת פריסת גרסה חדשה.'
       : 'הנתונים נספרים בתוכנה, ללא כל שירות מעקב חיצוני.';
