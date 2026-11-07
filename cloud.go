@@ -91,6 +91,9 @@ const (
 	loginPath  = "/login"
 )
 
+// statsHook, when set, is called on each successful browser login.
+var statsHook func()
+
 // sessionToken derives the cookie value from the key, so the raw key never
 // sits in the browser's cookie jar. Same key → same token, so nothing has
 // to be stored server-side and a redeploy does not log anyone out.
@@ -180,6 +183,9 @@ func withAccessKey(next http.Handler, key string) http.Handler {
 				return
 			}
 			limiter.success(ip)
+			if statsHook != nil {
+				statsHook()
+			}
 			setCookie(w, r)
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return

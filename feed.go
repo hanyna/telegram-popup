@@ -61,6 +61,8 @@ type Feed struct {
 	// Personal, app-side reactions (see reactions.go). nil on desktop until
 	// wired; handler tolerates nil.
 	reacts *reactStore
+	// Visit stats (see stats.go). nil until wired; handlers tolerate nil.
+	stats *statsStore
 
 	// Wired in by main so the feed stays free of scanning/config logic.
 	FetchOlder    func(channel string, beforeID int) ([]Message, error)
@@ -325,6 +327,7 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/keywords", f.handleKeywords)
 	mux.HandleFunc("/api/refresh", f.handleRefresh)
 	mux.HandleFunc("/api/reactions", f.handleReactions)
+	mux.HandleFunc("/api/stats", f.handleStats)
 	mux.HandleFunc("/api/video", f.handleVideo)
 	mux.HandleFunc("/api/media", f.handleMedia)
 	mux.HandleFunc("/api/search", lean(f.handleSearch))
@@ -372,6 +375,9 @@ func (f *Feed) handlePage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
+	}
+	if f.stats != nil {
+		f.stats.recordView(ensureDeviceID(w, r))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// Never let the browser serve a stale copy of the UI after an upgrade.

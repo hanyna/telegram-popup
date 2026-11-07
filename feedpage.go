@@ -467,6 +467,25 @@ const feedPage = `<!DOCTYPE html>
     border:none; background:#0d1120;
   }
   .embedwrap { cursor:pointer; }
+  /* stats panel */
+  #statsback { position:fixed; inset:0; z-index:48; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
+  #statsback.open { display:flex; }
+  .statscard { background:var(--panel); border:1px solid var(--line2); border-radius:18px; width:min(94vw,420px); max-height:88vh; overflow-y:auto; padding:20px; }
+  .statscard h2 { font-size:17px; margin:0 0 4px; }
+  .statscard .sub { font-size:12px; color:var(--muted); margin-bottom:16px; }
+  .statgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .statbox { background:var(--bubble); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .statbox .n { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .statbox .l { font-size:12px; color:var(--muted); margin-top:2px; }
+  .statbox.live .n { color:var(--accent2); }
+  .statbars { display:flex; align-items:flex-end; gap:6px; height:70px; padding:6px 2px 0; }
+  .statbars .bar { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+  .statbars .bar .fill { width:100%; background:var(--accent); border-radius:4px 4px 0 0; min-height:2px; opacity:0.85; }
+  .statbars .bar .dl { font-size:9.5px; color:var(--dim); }
+  .statbars .bar .bv { font-size:10px; color:var(--muted); }
+  .statnote { font-size:11.5px; color:var(--dim); margin-top:14px; line-height:1.5; }
+  .statclose { margin-top:16px; width:100%; padding:10px; border:1px solid var(--line2); border-radius:12px; background:transparent; color:var(--fg); font:inherit; font-size:14px; cursor:pointer; }
+
   /* digest ("מה היה היום") */
   #digestback { position:fixed; inset:0; background:var(--bg); z-index:45; display:none; flex-direction:column; }
   #digestback.open { display:flex; }
@@ -815,6 +834,7 @@ const feedPage = `<!DOCTYPE html>
         <div class="iconbtn keep" id="searchbtn" data-icon="search" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון"></div>
         <div class="iconbtn" id="filterbtn" data-icon="filter" role="button" tabindex="0" title="סינון לפי סוג" aria-label="סינון"></div>
         <div class="iconbtn keep" id="digestbtn" data-icon="list" role="button" tabindex="0" title="מה פספסתי / מה היה היום" aria-label="תקציר"></div>
+        <div class="iconbtn" id="statsbtn" data-icon="chart" role="button" tabindex="0" title="נתוני כניסות" aria-label="נתונים"></div>
         <div class="iconbtn keep" id="refreshbtn" data-icon="refresh" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו"></div>
         <div class="iconbtn" id="tglmute" data-icon="bell" role="button" tabindex="0" style="display:none"></div>
         <div class="iconbtn" id="tglpopups" data-icon="monitor" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות"></div>
@@ -869,6 +889,22 @@ const feedPage = `<!DOCTYPE html>
 <div id="sheetback"></div>
 <div id="reactpick"></div>
 <div id="msgsheet" role="menu"></div>
+<div id="statsback" role="dialog" aria-modal="true" aria-labelledby="stitle">
+  <div class="statscard">
+    <h2 id="stitle">נתוני כניסות</h2>
+    <div class="sub" id="ssince"></div>
+    <div class="statgrid">
+      <div class="statbox live"><div class="n" id="st_active">—</div><div class="l">מחוברים כרגע</div></div>
+      <div class="statbox"><div class="n" id="st_today">—</div><div class="l">כניסות היום</div></div>
+      <div class="statbox"><div class="n" id="st_views">—</div><div class="l">סה״כ כניסות</div></div>
+      <div class="statbox"><div class="n" id="st_devices">—</div><div class="l">מכשירים שונים</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">7 הימים האחרונים</div>
+    <div class="statbars" id="st_bars"></div>
+    <div class="statnote" id="st_note"></div>
+    <button class="statclose" id="st_close">סגור</button>
+  </div>
+</div>
 <div id="digestback" role="dialog" aria-modal="true" aria-labelledby="dtitle">
   <div class="dhead">
     <div class="iconbtn" id="dclose" data-icon="close" role="button" tabindex="0" title="סגור" aria-label="סגור"></div>
@@ -1030,7 +1066,8 @@ const feedPage = `<!DOCTYPE html>
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
     pin: '<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 17v4"/>',
     textsize: '<path d="M4 7V5h10v2M9 5v14M7 19h4M15 13v-1h6v1M18 12v7M16.5 19h3"/>',
-    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+    chart: '<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/>'
   };
   function svgIcon(name) { return ICONS[name] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>' : ''; }
   function applyIcons(root) {
@@ -2297,6 +2334,7 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('searchclose').onclick = closeSearch;
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
+      if (document.getElementById('statsback').classList.contains('open')) { closeStats(); return; }
       if (document.getElementById('reactpick').classList.contains('open')) { closeReactPick(); return; }
       if (document.getElementById('msgsheet').classList.contains('open')) { closeSheet(); return; }
       if (document.getElementById('digestback').classList.contains('open')) { closeDigest(); return; }
@@ -2813,6 +2851,53 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('chanlist').addEventListener('touchend', function () { if (rowLp) { clearTimeout(rowLp); rowLp = null; } }, { passive: true });
   document.getElementById('chanlist').addEventListener('touchmove', function () { if (rowLp) { clearTimeout(rowLp); rowLp = null; } }, { passive: true });
 
+  // ----- stats panel --------------------------------------------------------
+  var statsTimer = null;
+  function renderStats(d) {
+    if (!d || d.disabled) { toast('נתונים לא זמינים בגרסה הזו'); return false; }
+    document.getElementById('st_active').textContent = d.activeNow;
+    document.getElementById('st_today').textContent = d.today;
+    document.getElementById('st_views').textContent = d.views;
+    document.getElementById('st_devices').textContent = d.devices;
+    if (d.since) {
+      var sd = new Date(d.since * 1000);
+      document.getElementById('ssince').textContent = 'נמדד מאז ' + sd.toLocaleDateString('he-IL');
+    }
+    var max = 1; (d.days || []).forEach(function (x) { if (x.v > max) max = x.v; });
+    var bars = document.getElementById('st_bars'); bars.innerHTML = '';
+    (d.days || []).forEach(function (x) {
+      var day = new Date(x.d + 'T00:00:00');
+      var b = document.createElement('div'); b.className = 'bar';
+      var bv = document.createElement('div'); bv.className = 'bv'; bv.textContent = x.v || '';
+      var fill = document.createElement('div'); fill.className = 'fill'; fill.style.height = Math.round((x.v / max) * 100) + '%';
+      var dl = document.createElement('div'); dl.className = 'dl'; dl.textContent = ['א','ב','ג','ד','ה','ו','ש'][day.getDay()];
+      b.appendChild(bv); b.appendChild(fill); b.appendChild(dl); bars.appendChild(b);
+    });
+    document.getElementById('st_note').textContent = isCloud
+      ? 'הנתונים נשמרים בשרת. בתוכנית החינמית של Render הם עשויים להתאפס בעת פריסת גרסה חדשה.'
+      : 'הנתונים נספרים בתוכנה, ללא כל שירות מעקב חיצוני.';
+    return true;
+  }
+  function openStats() {
+    fetch('/api/stats', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (renderStats(d) === false) return;
+      document.getElementById('statsback').classList.add('open');
+      if (statsTimer) clearInterval(statsTimer);
+      statsTimer = setInterval(function () {
+        fetch('/api/stats', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && !d.disabled) document.getElementById('st_active').textContent = d.activeNow;
+        }).catch(function () {});
+      }, 5000);
+    }).catch(function () { toast('שגיאת תקשורת'); });
+  }
+  function closeStats() {
+    document.getElementById('statsback').classList.remove('open');
+    if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+  }
+  document.getElementById('st_close').onclick = closeStats;
+  document.getElementById('statsback').onclick = function (ev) { if (ev.target.id === 'statsback') closeStats(); };
+  document.getElementById('statsbtn').onclick = openStats;
+
   // ----- digest: "מה היה היום" ----------------------------------------------
   // A compact, text-only rundown of everything that came in, channel by
   // channel, built from what the page already holds. Half a minute of
@@ -2893,6 +2978,7 @@ const feedPage = `<!DOCTYPE html>
       m.appendChild(d);
     }
     item('📋', 'מה פספסתי / מה היה היום', function () { openDigest(); });
+    item('📊', 'נתוני כניסות', function () { openStats(); });
     item('🔠', 'גודל טקסט', cycleTxt);
     item('⚗️', 'סינון לפי סוג', function () { document.getElementById('filterbtn').click(); });
     item(theme === 'light' ? '🌙' : '🌓', 'מצב בהיר / כהה', function () { document.getElementById('themebtn').click(); });

@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "7.4"
+const version = "7.5"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -185,6 +185,7 @@ func main() {
 	cfgPath := filepath.Join(dir, "config.json")
 	statePath := filepath.Join(dir, "state.json")
 	reactPath := filepath.Join(dir, "reactions.json")
+	statsPath := filepath.Join(dir, "stats.json")
 
 	// No console window exists on Windows — everything goes to app.log.
 	// The file comes FIRST in the MultiWriter: under -H windowsgui stdout
@@ -323,6 +324,8 @@ func main() {
 	if cfg.Feed {
 		feed = NewFeed()
 		feed.reacts = newReactStore(reactPath)
+		feed.stats = newStatsStore(statsPath)
+		statsHook = feed.stats.recordLogin
 		feed.FetchOlder = func(channel string, beforeID int) ([]Message, error) {
 			msgs, err := fetchChannelBefore(channel, beforeID)
 			if err == nil && store != nil {
