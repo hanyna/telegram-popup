@@ -17,11 +17,11 @@ const feedPage = `<!DOCTYPE html>
 <meta name="theme-color" content="#dfe6f0" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ערוץ חי">
+<meta name="apple-mobile-web-app-title" content="מבזקי ארץ ישראל">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<title>ערוץ חי</title>
+<title>מבזקי ארץ ישראל</title>
 <script>
   // Theme before first paint: no dark flash for light-mode users (and the
   // other way round). The server's saved theme still wins once it loads.
@@ -782,7 +782,7 @@ const feedPage = `<!DOCTYPE html>
     <div class="sidehead">
       <div class="applogo"><svg viewBox="0 0 64 64"><path d="M14 14h36a6 6 0 016 6v18a6 6 0 01-6 6H32l-11 9v-9h-7a6 6 0 01-6-6V20a6 6 0 016-6z" fill="#fff"/></svg></div>
       <div class="appmeta">
-        <div class="appname">ערוץ חי <span style="font-size:10px;color:#5a6378;font-weight:400">v%%VERSION%%</span></div>
+        <div class="appname">מבזקי ארץ ישראל <span style="font-size:10px;color:#5a6378;font-weight:400">v%%VERSION%%</span></div>
         <div class="status"><span class="dot" id="dot"></span><span id="statustext">מתחבר…</span></div>
       </div>
     </div>
@@ -2642,7 +2642,7 @@ const feedPage = `<!DOCTYPE html>
       try { localStorage.setItem('tgpopup-notif', '1'); } catch (e) {}
       paintNotif();
       toast('התראות בדפדפן הופעלו — יופיעו כשהדף ברקע');
-      try { new Notification('ערוץ חי', { body: 'ההתראות פועלות ✓', icon: '/icon-192.png', silent: true, tag: 'tgpopup-test' }); } catch (e) {}
+      try { new Notification('מבזקי ארץ ישראל', { body: 'ההתראות פועלות ✓', icon: '/icon-192.png', silent: true, tag: 'tgpopup-test' }); } catch (e) {}
     });
   };
   var lastNotifAt = 0;

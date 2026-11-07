@@ -233,7 +233,7 @@ const loginPage = `<!doctype html>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<title>ערוץ חי — כניסה</title>
+<title>מבזקי ארץ ישראל — כניסה</title>
 <style>
   body { margin:0; font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
          background:#0b0e18; color:#eceff8; display:flex;
@@ -256,7 +256,7 @@ const loginPage = `<!doctype html>
 </style></head><body>
 <form class="card" method="post" action="/login" autocomplete="off">
   <div class="logo">📡</div>
-  <h1>ערוץ חי</h1>
+  <h1>מבזקי ארץ ישראל</h1>
   <p>הזן את מפתח הגישה כדי להיכנס</p>
   <input id="k" name="k" type="password" placeholder="מפתח גישה" autofocus required>
   <button type="submit">כניסה</button>

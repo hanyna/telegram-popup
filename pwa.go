@@ -25,9 +25,9 @@ import (
 )
 
 const manifestJSON = `{
-  "name": "ערוץ חי",
-  "short_name": "ערוץ חי",
-  "description": "מעקב ערוצי טלגרם ציבוריים — דף חי מכל מקום",
+  "name": "מבזקי ארץ ישראל",
+  "short_name": "מבזקים",
+  "description": "עדכונים חמים מערוצי טלגרם — במקום אחד, מכל מכשיר",
   "lang": "he",
   "dir": "rtl",
   "start_url": "/?source=pwa",
@@ -106,7 +106,7 @@ const offlinePage = `<!doctype html>
 <html lang="he" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0e18">
-<title>ערוץ חי — מתחבר</title>
+<title>מבזקי ארץ ישראל — מתחבר</title>
 <style>
   body { margin:0; font-family:"Segoe UI",system-ui,-apple-system,sans-serif; background:#0b0e18; color:#eceff8;
          display:flex; align-items:center; justify-content:center; min-height:100vh; min-height:100dvh; text-align:center; }

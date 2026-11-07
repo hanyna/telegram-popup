@@ -506,7 +506,7 @@ function Show-Html {
           $handled = $true
           try {
             $sh = New-Object -ComObject WScript.Shell
-            [void]$sh.AppActivate('ערוץ חי')
+            [void]$sh.AppActivate('מבזקי ארץ ישראל')
           } catch {}
         }
       } catch {}
