@@ -58,6 +58,10 @@ type Feed struct {
 	avatarMu    sync.Mutex
 	avatarCache map[string]avatarEntry
 
+	// Personal, app-side reactions (see reactions.go). nil on desktop until
+	// wired; handler tolerates nil.
+	reacts *reactStore
+
 	// Wired in by main so the feed stays free of scanning/config logic.
 	FetchOlder    func(channel string, beforeID int) ([]Message, error)
 	ListChannels  func() []string
@@ -320,6 +324,7 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/pin", f.handlePin)
 	mux.HandleFunc("/api/keywords", f.handleKeywords)
 	mux.HandleFunc("/api/refresh", f.handleRefresh)
+	mux.HandleFunc("/api/reactions", f.handleReactions)
 	mux.HandleFunc("/api/video", f.handleVideo)
 	mux.HandleFunc("/api/media", f.handleMedia)
 	mux.HandleFunc("/api/search", lean(f.handleSearch))

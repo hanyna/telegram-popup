@@ -1512,9 +1512,23 @@ const feedPage = `<!DOCTYPE html>
   // The viewer taps an emoji on a message; it is saved in this browser only.
   // Telegram has no idea — there is no account to send a reaction with.
   var REACT_SET = ['👍', '❤️', '🔥', '😮', '😢', '😂', '🙏', '✅'];
+  // Reactions live in "ערוץ חי" itself (server), with a localStorage copy for
+  // instant paint and offline use. The server is the source of truth, so the
+  // same reactions show on every device that logs in with the same key.
   var myReacts = {};
   try { myReacts = JSON.parse(localStorage.getItem('tgpopup-myreact') || '{}') || {}; } catch (e) {}
-  function saveMyReacts() { try { localStorage.setItem('tgpopup-myreact', JSON.stringify(myReacts)); } catch (e) {} }
+  function cacheMyReacts() { try { localStorage.setItem('tgpopup-myreact', JSON.stringify(myReacts)); } catch (e) {} }
+  function loadReactsFromServer() {
+    fetch('/api/reactions', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.reactions) return;
+      myReacts = d.reactions;
+      cacheMyReacts();
+      // Re-apply to everything already on screen.
+      msgs.querySelectorAll('.msg').forEach(function (n) {
+        var k = (n.id || '').slice(1); if (k) renderMyReact(n, k);
+      });
+    }).catch(function () {});
+  }
   function reactsRow(node) {
     var r = node.querySelector('.reacts');
     if (!r) {
@@ -1553,9 +1567,12 @@ const feedPage = `<!DOCTYPE html>
   function setMyReact(key, emoji) {
     if (!key) return;
     if (emoji) myReacts[key] = emoji; else delete myReacts[key];
-    saveMyReacts();
+    cacheMyReacts();
     var node = document.getElementById('m' + key) || document.getElementById('sr_' + key);
     if (node) renderMyReact(node, key);
+    // Save into the app itself so it follows you to other devices.
+    fetch('/api/reactions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key, emoji: emoji || '' }) }).catch(function () {});
   }
   function openReactPick(node, key, anchorEl) {
     var pick = document.getElementById('reactpick');
@@ -2142,6 +2159,7 @@ const feedPage = `<!DOCTYPE html>
       select(want); // lands on the "הודעות חדשות" line when there is one
     }
     saveSnapshot();
+    loadReactsFromServer(); // pull personal reactions saved in the app
     handleHashTarget(); // popup deep link: land on the exact message
   }).catch(function (e) {
     if (e && e.message === 'login') return;

@@ -82,3 +82,13 @@ func rotateLog(dir string) {
 		_ = os.Rename(cur, prev)
 	}
 }
+
+// readFileMaybe reads a file, returning (nil,nil) when it simply does not
+// exist yet so callers can treat "missing" and "empty" the same.
+func readFileMaybe(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	return data, err
+}
