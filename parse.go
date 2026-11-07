@@ -41,6 +41,15 @@ type Message struct {
 	LinkHref  string    `json:"lh,omitempty"`       //   destination URL
 	Doc       string    `json:"doc,omitempty"`      // attached file name
 	DocSize   string    `json:"docsize,omitempty"`  // attached file size, e.g. "2.3 MB"
+	// Reactions: the emoji reaction counts Telegram already shows under the
+	// public post. Read-only — there is no account to send one with.
+	Reactions []Reaction `json:"react,omitempty"`
+}
+
+// Reaction is one emoji and how many people reacted with it.
+type Reaction struct {
+	Emoji string `json:"e"`
+	Count string `json:"c"`
 }
 
 // PollOpt is one poll answer as rendered on the public page.
@@ -143,11 +152,17 @@ var (
 	reVideo    = regexp.MustCompile(`<video[^>]*?src="([^"]+)"`)
 	reVideoTh  = regexp.MustCompile(`tgme_widget_message_video_thumb[^>]*?url\('([^']+)'\)`)
 	reTooBig   = regexp.MustCompile(`(?i)Media is too big|message_media_not_supported_label[^<]*too big`)
-	reDuration = regexp.MustCompile(`video_duration[^>]*>([^<]+)<`)
-	reBr       = regexp.MustCompile(`(?i)<br\s*/?>`)
-	reTag      = regexp.MustCompile(`(?s)<[^>]*>`)
-	reSpaces   = regexp.MustCompile(`[ \t]+`)
-	reNewlines = regexp.MustCompile(`\n{3,}`)
+	// Reactions block on the public page, and one reaction inside it. The
+	// markup varies (emoji vs. custom image, with/without a count), so the
+	// parsing is deliberately tolerant: grab the reactions region, then pull
+	// every "<leading non-digit text><number>" pair out of its stripped text.
+	reReactBlock = regexp.MustCompile(`(?s)tgme_widget_message_reactions.*?(?:</div>\s*){1,3}`)
+	reReactPair  = regexp.MustCompile(`([^\d\s][^\d]*?)\s*(\d[\d.,]*[KkMmבא]?)`)
+	reDuration   = regexp.MustCompile(`video_duration[^>]*>([^<]+)<`)
+	reBr         = regexp.MustCompile(`(?i)<br\s*/?>`)
+	reTag        = regexp.MustCompile(`(?s)<[^>]*>`)
+	reSpaces     = regexp.MustCompile(`[ \t]+`)
+	reNewlines   = regexp.MustCompile(`\n{3,}`)
 
 	// Rich media kinds Telegram renders on public pages.
 	reRoundTag  = regexp.MustCompile(`<video[^>]*roundvideo[^>]*>`)
@@ -261,6 +276,9 @@ func ParseMessages(page string) []Message {
 				msg.DocSize = strings.TrimSpace(html.UnescapeString(e[1]))
 			}
 		}
+		if r := parseReactions(block); len(r) > 0 {
+			msg.Reactions = r
+		}
 		out = append(out, msg)
 	}
 	return out
@@ -326,4 +344,47 @@ func cleanText(s string) string {
 		lines[i] = strings.TrimSpace(lines[i])
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// parseReactions pulls the emoji reaction counts out of a message block.
+// Custom (image) reactions with no text emoji are skipped; a reaction with
+// no visible count is kept with an empty count (Telegram shows just the
+// emoji then).
+func parseReactions(block string) []Reaction {
+	loc := reReactBlock.FindString(block)
+	if loc == "" {
+		return nil
+	}
+	// Each reaction is usually its own anchor/span; split on them so counts
+	// never bleed from one emoji to the next.
+	parts := strings.Split(loc, "tgme_widget_message_reaction")
+	var out []Reaction
+	seen := map[string]bool{}
+	for _, part := range parts {
+		txt := reTag.ReplaceAllString(part, " ")
+		txt = strings.NewReplacer(">", " ", "<", " ", "\"", " ", "'", " ").Replace(txt)
+		txt = strings.TrimSpace(html.UnescapeString(txt))
+		txt = strings.Join(strings.Fields(txt), " ")
+		if txt == "" {
+			continue
+		}
+		m := reReactPair.FindStringSubmatch(txt)
+		if m == nil {
+			continue
+		}
+		emoji := strings.TrimSpace(m[1])
+		count := strings.TrimSpace(m[2])
+		if emoji == "" || len([]rune(emoji)) > 4 {
+			continue // noise, not a single reaction emoji
+		}
+		if seen[emoji] {
+			continue
+		}
+		seen[emoji] = true
+		out = append(out, Reaction{Emoji: emoji, Count: count})
+		if len(out) >= 12 {
+			break
+		}
+	}
+	return out
 }

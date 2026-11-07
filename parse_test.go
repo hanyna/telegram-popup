@@ -305,3 +305,38 @@ func TestTooBigVideoIsFlagged(t *testing.T) {
 		t.Fatal("page with an mp4 link must not count as too big")
 	}
 }
+
+func TestReactionsParsed(t *testing.T) {
+	block := `<div class="tgme_widget_message" data-post="c/10">
+	  <div class="tgme_widget_message_text">נושא חשוב</div>
+	  <div class="tgme_widget_message_reactions">
+	    <span class="tgme_widget_message_reaction"><span class="emoji">👍</span><span class="count">1.2K</span></span>
+	    <span class="tgme_widget_message_reaction"><span class="emoji">❤</span><span class="count">340</span></span>
+	    <span class="tgme_widget_message_reaction"><span class="emoji">🔥</span><span class="count">12</span></span>
+	  </div>
+	  <time datetime="2026-11-01T10:00:00+00:00"></time>
+	</div>`
+	ms := ParseMessages(block)
+	if len(ms) != 1 {
+		t.Fatalf("want 1 msg, got %d", len(ms))
+	}
+	r := ms[0].Reactions
+	if len(r) != 3 {
+		t.Fatalf("want 3 reactions, got %d: %+v", len(r), r)
+	}
+	if r[0].Emoji != "👍" || r[0].Count != "1.2K" {
+		t.Fatalf("first reaction wrong: %+v", r[0])
+	}
+	if r[2].Emoji != "🔥" || r[2].Count != "12" {
+		t.Fatalf("third reaction wrong: %+v", r[2])
+	}
+	h := renderFeedItem(ms[0])
+	if !strings.Contains(h, "reacts") || !strings.Contains(h, "👍") || !strings.Contains(h, "1.2K") {
+		t.Fatalf("reactions not rendered: %s", h)
+	}
+	// A post with no reactions block produces none.
+	none := ParseMessages(`<div class="tgme_widget_message" data-post="c/11"><div class="tgme_widget_message_text">בלי</div><time datetime="2026-11-01T10:00:00+00:00"></time></div>`)
+	if len(none) != 1 || len(none[0].Reactions) != 0 {
+		t.Fatalf("expected no reactions, got %+v", none[0].Reactions)
+	}
+}

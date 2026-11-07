@@ -1300,6 +1300,17 @@ func renderFeedItem(m Message) string {
 	if strings.TrimSpace(m.Text) != "" {
 		b.WriteString(`<div class="msgtext">` + richText(m.Text) + `</div>`)
 	}
+	if len(m.Reactions) > 0 {
+		b.WriteString(`<div class="reacts">`)
+		for _, r := range m.Reactions {
+			b.WriteString(`<span class="react"><span class="re">` + html.EscapeString(r.Emoji) + `</span>`)
+			if r.Count != "" {
+				b.WriteString(`<span class="rc">` + html.EscapeString(r.Count) + `</span>`)
+			}
+			b.WriteString(`</span>`)
+		}
+		b.WriteString(`</div>`)
+	}
 	b.WriteString(`</article>`)
 	return b.String()
 }

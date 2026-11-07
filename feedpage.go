@@ -29,35 +29,40 @@ const feedPage = `<!DOCTYPE html>
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2337aee2'/%3E%3Cstop offset='1' stop-color='%2331c48d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='url(%23g)'/%3E%3Cpath d='M18 20h28a4 4 0 014 4v12a4 4 0 01-4 4H31l-8 7v-7h-5a4 4 0 01-4-4V24a4 4 0 014-4z' fill='%23fff'/%3E%3C/svg%3E">
 <style>
+  /* Quiet palette: low-saturation slate, one calm blue accent, soft lines.
+     Nothing shouts; structure comes from spacing, not colour. */
   :root {
-    --bg:#0b0e18; --bg2:#0f1320;
-    --panel:#12172a; --panel2:#161c31;
-    --bubble:#1a2138; --bubble2:#202946;
-    --line:rgba(255,255,255,0.06);
-    --fg:#eceff8; --muted:#8b93a9; --dim:#5a6378;
-    --accent:#37aee2; --accent2:#31c48d;
-    --headbg:rgba(15,19,32,0.85);
-    --markbg:rgba(55,174,226,0.35);
+    --bg:#0d1016; --bg2:#11151c;
+    --panel:#141922; --panel2:#171d27;
+    --bubble:#1a212b; --bubble2:#1f2732;
+    --line:rgba(255,255,255,0.065);
+    --line2:rgba(255,255,255,0.11);
+    --fg:#e6e9ef; --muted:#8c94a2; --dim:#5f6775;
+    --accent:#4a93c4; --accent2:#4aa88a;
+    --headbg:rgba(17,21,28,0.82);
+    --markbg:rgba(74,147,196,0.30);
   }
   body.light, html.light body {
-    --bg:#dfe6f0; --bg2:#d5dde9;
-    --panel:#ffffff; --panel2:#f7f9fd;
-    --bubble:#ffffff; --bubble2:#fbfdff;
-    --line:rgba(20,30,60,0.14);
-    --fg:#1c2333; --muted:#525b76; --dim:#7d869d;
-    --accent:#1e88d2; --accent2:#0e8a62;
-    --headbg:rgba(255,255,255,0.88);
-    --markbg:rgba(30,136,210,0.25);
+    --bg:#eef1f5; --bg2:#e8ecf2;
+    --panel:#ffffff; --panel2:#f6f8fb;
+    --bubble:#ffffff; --bubble2:#f8fafc;
+    --line:rgba(22,30,46,0.10);
+    --line2:rgba(22,30,46,0.17);
+    --fg:#20262f; --muted:#5a6475; --dim:#8690a0;
+    --accent:#2b7fb8; --accent2:#2e8f6e;
+    --headbg:rgba(255,255,255,0.9);
+    --markbg:rgba(43,127,184,0.22);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { height:100%; }
   body {
     background:var(--bg);
     color:var(--fg);
-    font-family:'Segoe UI','Segoe UI Emoji','Noto Sans Hebrew',Arial,sans-serif;
+    font-family:system-ui,-apple-system,'Segoe UI','Noto Sans Hebrew','Heebo',Arial,sans-serif;
+    font-size:14px; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     overflow:hidden;
   }
-  ::selection { background:rgba(55,174,226,0.35); }
+  ::selection { background:rgba(74,147,196,0.35); }
   ::-webkit-scrollbar { width:8px; height:8px; }
   ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.10); border-radius:99px; }
   ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.18); }
@@ -71,8 +76,8 @@ const feedPage = `<!DOCTYPE html>
 
   /* ===== sidebar ========================================================= */
   #side {
-    width:300px; flex:none;
-    background:linear-gradient(180deg,var(--panel) 0%,var(--bg2) 100%);
+    width:288px; flex:none;
+    background:var(--panel);
     border-left:1px solid var(--line);
     display:flex; flex-direction:column;
   }
@@ -82,17 +87,17 @@ const feedPage = `<!DOCTYPE html>
     border-bottom:1px solid var(--line);
   }
   .applogo {
-    width:38px; height:38px; border-radius:12px; flex:none;
-    background:linear-gradient(135deg,#37aee2,#1e88d2);
+    width:36px; height:36px; border-radius:11px; flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
     display:flex; align-items:center; justify-content:center;
-    box-shadow:0 3px 12px rgba(30,136,210,0.4);
+    box-shadow:0 2px 8px rgba(0,0,0,0.25);
   }
   .applogo svg { width:20px; height:20px; }
   .appmeta { min-width:0; }
   .appname { font-size:14px; font-weight:700; letter-spacing:0.2px; }
   .status { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px; margin-top:1px; }
   .dot { width:7px; height:7px; border-radius:50%; background:#e05252; flex:none; transition:background 0.3s; }
-  .dot.on { background:var(--accent2); box-shadow:0 0 6px rgba(49,196,141,0.8); }
+  .dot.on { background:var(--accent2); box-shadow:0 0 6px rgba(74,168,138,0.8); }
 
   #chanlist { flex:1; overflow-y:auto; padding:8px; }
 
@@ -105,7 +110,7 @@ const feedPage = `<!DOCTYPE html>
   }
   .row:hover { background:rgba(255,255,255,0.045); }
   .row.active {
-    background:linear-gradient(135deg,rgba(55,174,226,0.22),rgba(30,136,210,0.12));
+    background:linear-gradient(135deg,rgba(74,147,196,0.22),rgba(30,136,210,0.12));
   }
   .row.active::before {
     content:''; position:absolute; right:-8px; top:20%;
@@ -136,7 +141,7 @@ const feedPage = `<!DOCTYPE html>
     min-width:19px; height:19px; padding:0 6px;
     border-radius:99px; display:none;
     align-items:center; justify-content:center;
-    background:linear-gradient(135deg,#37aee2,#1e88d2);
+    background:linear-gradient(135deg,var(--accent),var(--accent));
     color:#fff; font-size:11px; font-weight:700;
   }
   .badge.show { display:flex; }
@@ -144,7 +149,7 @@ const feedPage = `<!DOCTYPE html>
   .avabadge {
     position:absolute; top:-3px; left:-3px; display:none;
     min-width:18px; height:18px; padding:0 5px; border-radius:99px;
-    background:linear-gradient(135deg,#37aee2,#1e88d2); color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent)); color:#fff;
     font-size:10.5px; font-weight:700; align-items:center; justify-content:center;
     border:2px solid var(--panel);
   }
@@ -180,7 +185,7 @@ const feedPage = `<!DOCTYPE html>
   #addbtn {
     width:100%; font:inherit; font-size:13px; font-weight:600;
     color:#fff; border:none; border-radius:12px;
-    background:linear-gradient(135deg,#37aee2,#1e88d2);
+    background:linear-gradient(135deg,var(--accent),var(--accent));
     padding:11px 0; cursor:pointer;
     box-shadow:0 4px 14px rgba(30,136,210,0.35);
     transition:transform 0.12s ease, box-shadow 0.12s ease;
@@ -217,7 +222,7 @@ const feedPage = `<!DOCTYPE html>
   .fchip { flex:none; }
   #filters.open { display:flex; }
   .fchip { font-size:12.5px; padding:5px 12px; border-radius:99px; border:1px solid var(--line); cursor:pointer; color:var(--muted); user-select:none; }
-  .fchip.on { background:rgba(55,174,226,0.15); color:var(--accent); border-color:rgba(55,174,226,0.4); }
+  .fchip.on { background:rgba(74,147,196,0.15); color:var(--accent); border-color:rgba(74,147,196,0.4); }
   .msg.fhide { display:none; }
   /* message action sheet (long press / right click) */
   #msgsheet { position:fixed; left:0; right:0; bottom:0; z-index:46; display:none; background:var(--panel);
@@ -227,24 +232,26 @@ const feedPage = `<!DOCTYPE html>
   #sheetback { position:fixed; inset:0; z-index:45; display:none; background:rgba(0,0,0,0.35); }
   #sheetback.open { display:block; }
   .sitem { display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:12px; font-size:15px; cursor:pointer; }
-  .sitem:hover { background:rgba(55,174,226,0.12); }
+  .sitem:hover { background:rgba(74,147,196,0.12); }
   .sitem .mi { width:24px; text-align:center; }
   @media (min-width:681px) { #msgsheet { left:50%; right:auto; bottom:auto; top:50%; transform:translate(-50%,-50%); width:320px; border-radius:16px; border:1px solid var(--line); } }
   .mitem {
     display:flex; align-items:center; gap:10px; padding:10px 12px;
     border-radius:10px; font-size:13.5px; cursor:pointer; user-select:none;
   }
-  .mitem:hover { background:rgba(55,174,226,0.12); }
+  .mitem:hover { background:rgba(74,147,196,0.12); }
   .mitem .mi { width:22px; text-align:center; font-size:16px; }
   #installrow { display:none; padding:10px 12px 0; }
   #installbtn {
     width:100%; font:inherit; font-size:12.5px; font-weight:600; color:var(--fg);
-    border:1px solid rgba(55,174,226,0.4); border-radius:12px; padding:9px 0;
-    background:rgba(55,174,226,0.10); cursor:pointer;
+    border:1px solid rgba(74,147,196,0.4); border-radius:12px; padding:9px 0;
+    background:rgba(74,147,196,0.10); cursor:pointer;
   }
   #iosinstall { font-size:11.5px; color:var(--muted); line-height:1.5; }
   #wakehint { display:none; text-align:center; color:var(--muted); font-size:13px; padding:8px 0 16px; line-height:1.6; }
 
+  .iconbtn svg { width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; display:block; }
+  .iconbtn.on { color:var(--accent); background:rgba(74,147,196,0.14); }
   .iconbtn {
     width:36px; height:36px; border-radius:50%; flex:none;
     display:flex; align-items:center; justify-content:center;
@@ -252,7 +259,7 @@ const feedPage = `<!DOCTYPE html>
     font-size:16px; cursor:pointer; user-select:none;
     transition:background 0.12s, border-color 0.12s, opacity 0.12s;
   }
-  .iconbtn:hover { background:rgba(55,174,226,0.14); border-color:rgba(55,174,226,0.4); }
+  .iconbtn:hover { background:rgba(74,147,196,0.14); border-color:rgba(74,147,196,0.4); }
   .iconbtn.off { opacity:0.45; }
   #refreshbtn { font-size:19px; color:var(--accent); }
   #refreshbtn.spinning { animation:spin 0.8s linear infinite; pointer-events:none; opacity:0.7; }
@@ -271,7 +278,7 @@ const feedPage = `<!DOCTYPE html>
     font:inherit; font-size:16px; padding:9px 18px; min-width:0;
     outline:none; transition:border-color 0.15s;
   }
-  #searchinput:focus { border-color:rgba(55,174,226,0.55); box-shadow:0 0 0 3px rgba(55,174,226,0.10); }
+  #searchinput:focus { border-color:rgba(74,147,196,0.55); box-shadow:0 0 0 3px rgba(74,147,196,0.10); }
   #resultsmeta {
     max-width:720px; margin:0 auto 14px;
     color:var(--muted); font-size:12.5px; text-align:center;
@@ -300,8 +307,8 @@ const feedPage = `<!DOCTYPE html>
   #chat {
     flex:1; overflow-y:auto;
     background:
-      radial-gradient(1000px 500px at 85% -5%, rgba(55,174,226,0.07), transparent 55%),
-      radial-gradient(800px 400px at 10% 105%, rgba(49,196,141,0.05), transparent 55%),
+      radial-gradient(1000px 500px at 85% -5%, rgba(74,147,196,0.07), transparent 55%),
+      radial-gradient(800px 400px at 10% 105%, rgba(74,168,138,0.05), transparent 55%),
       var(--bg);
     padding:18px 22px 26px;
   }
@@ -317,8 +324,8 @@ const feedPage = `<!DOCTYPE html>
     color:var(--fg);
   }
   #statusbar.calm {
-    background:rgba(55,174,226,0.09);
-    border-bottom-color:rgba(55,174,226,0.26);
+    background:rgba(74,147,196,0.09);
+    border-bottom-color:rgba(74,147,196,0.26);
   }
   #statusicon { font-size:15px; flex:none; }
   #statustext { flex:1; }
@@ -340,7 +347,7 @@ const feedPage = `<!DOCTYPE html>
     flex:none; font-size:11px; padding:1px 7px; border-radius:20px;
     background:rgba(255,255,255,0.06); color:var(--muted);
   }
-  .stbadge.good { background:rgba(49,196,141,0.16); color:var(--accent2); }
+  .stbadge.good { background:rgba(74,168,138,0.16); color:var(--accent2); }
   .stbadge.bad  { background:rgba(255,120,100,0.16); color:#ff8a72; }
   .stbadge.wait { background:rgba(255,176,32,0.16); color:#f0a828; }
 
@@ -365,13 +372,16 @@ const feedPage = `<!DOCTYPE html>
   }
 
   .msg {
-    background:linear-gradient(160deg,var(--bubble2),var(--bubble));
+    position:relative;
+    background:var(--bubble);
     border:1px solid var(--line);
-    border-radius:16px 16px 16px 5px;
-    padding:11px 15px 12px;
-    margin-bottom:10px;
+    border-radius:14px 14px 14px 4px;
+    padding:10px 14px 11px;
+    margin-bottom:9px;
     max-width:86%;
-    box-shadow:0 2px 10px rgba(0,0,0,0.18);
+    box-shadow:0 1px 2px rgba(0,0,0,0.12);
+    /* A thin edge in the channel's colour — quiet identity, no loud header. */
+    border-inline-start:2.5px solid var(--chan, var(--line2));
     /* Off-screen bubbles skip layout & paint entirely — with hundreds of
        messages loaded this is the difference between smooth and sluggish. */
     content-visibility:auto;
@@ -379,7 +389,9 @@ const feedPage = `<!DOCTYPE html>
   }
   /* Only a message that just arrived animates in — switching channels used
      to replay the entrance on every one of hundreds of bubbles. */
-  .msg.fresh { box-shadow:0 0 0 1px rgba(55,174,226,0.5), 0 6px 24px rgba(55,174,226,0.15); animation:rise 0.22s ease-out; }
+  .msg.fresh { animation:rise 0.22s ease-out; }
+  .msg.fresh::after { content:''; position:absolute; inset:-1px; border-radius:inherit; box-shadow:0 0 0 1px rgba(74,147,196,0.45); pointer-events:none; animation:fadeedge 2.4s ease-out forwards; }
+  @keyframes fadeedge { from { opacity:1; } to { opacity:0; } }
   .msg.hidden { display:none; }
   @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
@@ -387,7 +399,7 @@ const feedPage = `<!DOCTYPE html>
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     margin-bottom:6px; font-size:11.5px;
   }
-  .msgchan { color:var(--accent2); font-weight:700; cursor:pointer; }
+  .msgchan { color:var(--chan, var(--accent2)); font-weight:600; cursor:pointer; letter-spacing:0.1px; }
   .msgchan:hover { text-decoration:underline; }
   body.single .msgchan { display:none; }
   .msgtime { color:var(--muted); direction:ltr; }
@@ -396,6 +408,28 @@ const feedPage = `<!DOCTYPE html>
   body.txt-l { --txt:16px; }
   body.txt-xl { --txt:18.5px; }
   .msgtext { font-size:var(--txt); line-height:1.6; word-wrap:break-word; overflow-wrap:anywhere; unicode-bidi:plaintext; }
+  /* reactions: read-only counts from Telegram's public page */
+  .reacts { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .react { display:inline-flex; align-items:center; gap:4px; padding:2px 8px 2px 7px;
+    background:var(--bubble2); border:1px solid var(--line); border-radius:99px;
+    font-size:12px; line-height:1.5; color:var(--muted); }
+  .react .re { font-size:13px; }
+  .react .rc { font-variant-numeric:tabular-nums; }
+  /* the viewer's own reaction (saved on this device, never sent anywhere) */
+  .react.mine { background:rgba(74,147,196,0.18); border-color:rgba(74,147,196,0.5); color:var(--fg); cursor:pointer; }
+  .addreact { display:inline-flex; align-items:center; justify-content:center; width:24px; height:22px;
+    border:1px dashed var(--line2); border-radius:99px; color:var(--muted); cursor:pointer; font-size:13px;
+    opacity:0; transition:opacity 0.12s; }
+  .msg:hover .addreact, .reacts:hover .addreact { opacity:0.8; }
+  @media (hover:none) { .addreact { display:none; } } /* touch: use long-press */
+  .addreact:hover { color:var(--accent); border-color:var(--accent); }
+  .addreact svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; }
+  /* emoji picker popover */
+  #reactpick { position:fixed; z-index:47; display:none; gap:2px; padding:6px;
+    background:var(--panel); border:1px solid var(--line2); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,0.4); }
+  #reactpick.open { display:flex; }
+  #reactpick span { font-size:22px; padding:4px 6px; border-radius:9px; cursor:pointer; line-height:1; }
+  #reactpick span:hover { background:rgba(74,147,196,0.16); transform:scale(1.15); }
   .rowprev, .linktitle, .linkdesc, .docname, .pollq, .pollmeta span { unicode-bidi:plaintext; }
   .msgtext a { color:#5cb8ff; text-decoration:none; border-bottom:1px solid rgba(92,184,255,0.35); }
 
@@ -440,13 +474,13 @@ const feedPage = `<!DOCTYPE html>
   .dhead h2 { font-size:16px; margin:0; flex:1; }
   .dtabs { display:flex; gap:6px; padding:10px 16px 0; }
   .dtab { font-size:13px; padding:6px 14px; border-radius:99px; border:1px solid var(--line); cursor:pointer; color:var(--muted); }
-  .dtab.on { background:rgba(55,174,226,0.15); color:var(--accent); border-color:rgba(55,174,226,0.4); }
+  .dtab.on { background:rgba(74,147,196,0.15); color:var(--accent); border-color:rgba(74,147,196,0.4); }
   #dlist { flex:1; overflow-y:auto; padding:10px 16px calc(24px + env(safe-area-inset-bottom)); }
   .dchan { margin:14px 0 6px; display:flex; align-items:center; gap:8px; font-weight:700; font-size:14px; }
   .dchan .ava { width:26px; height:26px; font-size:11px; }
   .dchan .cnt { font-weight:400; color:var(--muted); font-size:12px; }
   .drow { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:13.5px; line-height:1.45; }
-  .drow:hover { background:rgba(55,174,226,0.06); }
+  .drow:hover { background:rgba(74,147,196,0.06); }
   .drow .dt { flex:none; color:var(--dim); font-size:12px; direction:ltr; min-width:40px; padding-top:2px; }
   .drow .dx { flex:1; min-width:0; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; unicode-bidi:plaintext; }
   .drow .dm { flex:none; font-size:14px; }
@@ -460,7 +494,7 @@ const feedPage = `<!DOCTYPE html>
   .toobiglabel b { font-size:15px; }
   .toobiglabel span { font-size:12px; opacity:0.9; }
   .toobiglabel::before { content:'🔒'; font-size:26px; margin-bottom:4px; }
-  .vidready { box-shadow:0 0 0 2px rgba(49,196,141,0.7), 0 0 22px rgba(49,196,141,0.35); }
+  .vidready { box-shadow:0 0 0 2px rgba(74,168,138,0.7), 0 0 22px rgba(74,168,138,0.35); }
   .vidready .playbtn { background:rgba(20,120,80,0.8); border-color:#fff; }
 
   .msgtext.clamped { max-height:230px; overflow:hidden; position:relative; }
@@ -471,7 +505,7 @@ const feedPage = `<!DOCTYPE html>
   .morebtn {
     display:inline-block; margin-top:7px;
     color:var(--accent); font-size:12.5px; cursor:pointer;
-    border-bottom:1px dashed rgba(55,174,226,0.4);
+    border-bottom:1px dashed rgba(74,147,196,0.4);
   }
   .morebtn:hover { border-bottom-style:solid; }
 
@@ -480,7 +514,7 @@ const feedPage = `<!DOCTYPE html>
     width:46px; height:46px; border-radius:50%;
     display:none; align-items:center; justify-content:center;
     background:rgba(22,28,49,0.92); color:var(--accent);
-    border:1px solid rgba(55,174,226,0.35);
+    border:1px solid rgba(74,147,196,0.35);
     font-size:20px; cursor:pointer;
     box-shadow:0 6px 18px rgba(0,0,0,0.4);
     z-index:14;
@@ -498,7 +532,7 @@ const feedPage = `<!DOCTYPE html>
   #jump {
     position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
     display:none; align-items:center; gap:8px;
-    background:linear-gradient(135deg,#37aee2,#1e88d2);
+    background:linear-gradient(135deg,var(--accent),var(--accent));
     color:#fff; border:none; border-radius:99px;
     font:inherit; font-size:13px; font-weight:700;
     padding:10px 20px; cursor:pointer;
@@ -532,14 +566,14 @@ const feedPage = `<!DOCTYPE html>
     direction:ltr; text-align:left; outline:none;
     transition:border-color 0.15s;
   }
-  .modal input:focus { border-color:rgba(55,174,226,0.6); box-shadow:0 0 0 3px rgba(55,174,226,0.12); }
+  .modal input:focus { border-color:rgba(74,147,196,0.6); box-shadow:0 0 0 3px rgba(74,147,196,0.12); }
   .modal .err { color:#ff9c9c; font-size:12px; min-height:16px; margin-top:8px; }
   .modal .btns { display:flex; gap:10px; margin-top:10px; }
   .modal button {
     flex:1; font:inherit; font-size:13.5px; border-radius:11px;
     padding:10px 0; cursor:pointer; border:1px solid var(--line);
   }
-  .modal .ok { background:linear-gradient(135deg,#37aee2,#1e88d2); color:#fff; border:none; font-weight:700; }
+  .modal .ok { background:linear-gradient(135deg,var(--accent),var(--accent)); color:#fff; border:none; font-weight:700; }
   .modal .ok:disabled { opacity:0.55; cursor:default; }
   .modal .cancel { background:transparent; color:var(--muted); }
 
@@ -598,7 +632,7 @@ const feedPage = `<!DOCTYPE html>
 
   .voicebox {
     display:flex; align-items:center; gap:10px;
-    background:rgba(55,174,226,0.08); border:1px solid rgba(55,174,226,0.22);
+    background:rgba(74,147,196,0.08); border:1px solid rgba(74,147,196,0.22);
     border-radius:14px; padding:8px 12px; margin:4px 0 8px;
   }
   .voiceico { font-size:18px; flex:none; }
@@ -609,7 +643,7 @@ const feedPage = `<!DOCTYPE html>
   .stickerbox img { max-width:170px; max-height:170px; display:block; }
 
   .pollbox {
-    background:rgba(55,174,226,0.06); border:1px solid var(--line);
+    background:rgba(74,147,196,0.06); border:1px solid var(--line);
     border-radius:14px; padding:12px 14px; margin:4px 0 8px;
   }
   .pollq { font-weight:700; font-size:13.5px; margin-bottom:10px; }
@@ -641,14 +675,14 @@ const feedPage = `<!DOCTYPE html>
 
   .linkcard {
     display:flex; gap:11px; align-items:stretch;
-    background:rgba(55,174,226,0.05);
+    background:rgba(74,147,196,0.05);
     border:1px solid var(--line); border-right:3px solid var(--accent);
     border-radius:11px; overflow:hidden;
     margin:6px 0 4px; padding:10px 12px;
     text-decoration:none; color:inherit;
     transition:background 0.12s;
   }
-  a.linkcard:hover { background:rgba(55,174,226,0.12); }
+  a.linkcard:hover { background:rgba(74,147,196,0.12); }
   .linkcard img {
     width:64px; height:64px; object-fit:cover; flex:none;
     border-radius:8px; border:none;
@@ -665,7 +699,7 @@ const feedPage = `<!DOCTYPE html>
     opacity:0; transition:opacity 0.12s;
   }
   .row:hover .rowpin { opacity:0.85; }
-  .rowpin:hover { background:rgba(55,174,226,0.25); }
+  .rowpin:hover { background:rgba(74,147,196,0.25); }
   .row.pinned .rowpin { opacity:0.85; }
   .pinmark { font-size:10.5px; opacity:0.75; }
 
@@ -676,7 +710,7 @@ const feedPage = `<!DOCTYPE html>
   }
   .unreadline::before, .unreadline::after {
     content:''; flex:1; height:1px;
-    background:linear-gradient(90deg,transparent,rgba(55,174,226,0.55),transparent);
+    background:linear-gradient(90deg,transparent,rgba(74,147,196,0.55),transparent);
   }
 
   /* ===== light-mode contrast fixes =======================================
@@ -754,7 +788,7 @@ const feedPage = `<!DOCTYPE html>
     </div>
     <div id="chanlist"></div>
     <div id="updrow" style="display:none;padding:10px 12px 0">
-      <button id="updbtn" style="width:100%;font:600 12.5px 'Segoe UI',sans-serif;color:#fff;border:none;border-radius:12px;padding:10px 0;cursor:pointer;background:linear-gradient(135deg,#31c48d,#149a6e);box-shadow:0 4px 14px rgba(20,154,110,0.35)">
+      <button id="updbtn" style="width:100%;font:600 12.5px 'Segoe UI',sans-serif;color:#fff;border:none;border-radius:12px;padding:10px 0;cursor:pointer;background:linear-gradient(135deg,var(--accent2),var(--accent2));box-shadow:0 4px 14px rgba(20,154,110,0.35)">
         ⬇ גרסה חדשה זמינה — לחץ לעדכון
       </button>
     </div>
@@ -765,7 +799,7 @@ const feedPage = `<!DOCTYPE html>
     <div class="autostartrow" id="autostartrow" style="display:none">
       <label><input type="checkbox" id="autostartchk"> הפעל עם ווינדוס</label>
     </div>
-    <div class="addwrap"><button id="addbtn"><span class="txt">+ הוסף ערוץ</span><span class="plus" style="display:none">+</span></button></div>
+    <div class="addwrap"><button id="addbtn"><span class="txt">הוסף ערוץ</span><span class="plus" data-icon="plus" style="display:none"></span></button></div>
   </aside>
 
   <main id="main">
@@ -776,23 +810,23 @@ const feedPage = `<!DOCTYPE html>
         <div id="headsub"></div>
       </div>
       <div class="headbtns">
-        <div class="iconbtn" id="kwbtn" role="button" tabindex="0" title="מילות מפתח להתראות" aria-label="מילות מפתח להתראות">⚙️</div>
-        <div class="iconbtn" id="themebtn" role="button" tabindex="0" title="מצב בהיר/כהה" aria-label="מצב בהיר/כהה">🌓</div>
-        <div class="iconbtn keep" id="searchbtn" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון">🔍</div>
-        <div class="iconbtn" id="filterbtn" role="button" tabindex="0" title="סינון לפי סוג" aria-label="סינון">⚗️</div>
-        <div class="iconbtn keep" id="digestbtn" role="button" tabindex="0" title="מה פספסתי / מה היה היום" aria-label="תקציר">📋</div>
-        <div class="iconbtn keep" id="refreshbtn" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו">⟳</div>
-        <div class="iconbtn" id="tglmute" role="button" tabindex="0" style="display:none">🔔</div>
-        <div class="iconbtn" id="tglpopups" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות">🖥️</div>
-        <div class="iconbtn" id="tglsound" role="button" tabindex="0" title="צליל התראה" aria-label="צליל התראה">🔊</div>
-        <div class="iconbtn keep" id="tglnotif" role="button" tabindex="0" style="display:none" title="התראות בדפדפן" aria-label="התראות בדפדפן">🔔</div>
-        <div class="iconbtn" id="morebtn" role="button" tabindex="0" title="עוד" aria-label="עוד">⋯</div>
+        <div class="iconbtn" id="kwbtn" data-icon="settings" role="button" tabindex="0" title="מילות מפתח להתראות" aria-label="מילות מפתח להתראות"></div>
+        <div class="iconbtn" id="themebtn" data-icon="moon" role="button" tabindex="0" title="מצב בהיר/כהה" aria-label="מצב בהיר/כהה"></div>
+        <div class="iconbtn keep" id="searchbtn" data-icon="search" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון"></div>
+        <div class="iconbtn" id="filterbtn" data-icon="filter" role="button" tabindex="0" title="סינון לפי סוג" aria-label="סינון"></div>
+        <div class="iconbtn keep" id="digestbtn" data-icon="list" role="button" tabindex="0" title="מה פספסתי / מה היה היום" aria-label="תקציר"></div>
+        <div class="iconbtn keep" id="refreshbtn" data-icon="refresh" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו"></div>
+        <div class="iconbtn" id="tglmute" data-icon="bell" role="button" tabindex="0" style="display:none"></div>
+        <div class="iconbtn" id="tglpopups" data-icon="monitor" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות"></div>
+        <div class="iconbtn" id="tglsound" data-icon="volume" role="button" tabindex="0" title="צליל התראה" aria-label="צליל התראה"></div>
+        <div class="iconbtn keep" id="tglnotif" data-icon="bell" role="button" tabindex="0" style="display:none" title="התראות בדפדפן" aria-label="התראות בדפדפן"></div>
+        <div class="iconbtn" id="morebtn" data-icon="more" role="button" tabindex="0" title="עוד" aria-label="עוד"></div>
       </div>
       <div id="moremenu" role="menu"></div>
     </div>
     <div id="searchbar">
       <input id="searchinput" placeholder="חיפוש בכל ההיסטוריה שנשמרה…" spellcheck="false">
-      <div class="iconbtn" id="searchclose" title="סגור חיפוש">✕</div>
+      <div class="iconbtn" id="searchclose" data-icon="close" title="סגור חיפוש"></div>
     </div>
     <!-- NOTE: this bar's text span is sbartext — NOT statustext, which is the
          sidebar's connection label. They were once the same id, and the
@@ -819,8 +853,8 @@ const feedPage = `<!DOCTYPE html>
         <div id="resultslist"></div>
       </div>
     </div>
-    <button id="jump">⬇ הודעות חדשות <span class="cnt" id="jumpcnt">1</span></button>
-    <button id="downbtn" title="גלול לתחתית">⌄</button>
+    <button id="jump"><span class="ji" data-icon="down"></span> הודעות חדשות <span class="cnt" id="jumpcnt">1</span></button>
+    <button id="downbtn" data-icon="down" title="גלול לתחתית"></button>
     <div id="toast" role="status" aria-live="polite"></div>
   </main>
 </div>
@@ -833,10 +867,11 @@ const feedPage = `<!DOCTYPE html>
 </div>
 
 <div id="sheetback"></div>
+<div id="reactpick"></div>
 <div id="msgsheet" role="menu"></div>
 <div id="digestback" role="dialog" aria-modal="true" aria-labelledby="dtitle">
   <div class="dhead">
-    <div class="iconbtn" id="dclose" role="button" tabindex="0" title="סגור" aria-label="סגור">✕</div>
+    <div class="iconbtn" id="dclose" data-icon="close" role="button" tabindex="0" title="סגור" aria-label="סגור"></div>
     <h2 id="dtitle">מה היה היום</h2>
   </div>
   <div class="dtabs">
@@ -973,6 +1008,39 @@ const feedPage = `<!DOCTYPE html>
   var donePer = {};     // channel -> no more history
   var loadingOlder = false;
 
+  // ----- line icons (quiet, monochrome SVG — no emoji in the chrome) --------
+  var ICONS = {
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 6.6 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 12.6H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 3.6V3a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 15 4.6l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    filter: '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/>',
+    bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
+    belloff: '<path d="M8.7 3A6 6 0 0 1 18 8c0 2.3.3 4 .8 5.2M18 17H3s3-2 3-9M13.7 21a2 2 0 0 1-3.4 0M2 2l20 20"/>',
+    monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+    volume: '<path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+    volumeoff: '<path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/>',
+    more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
+    close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-4M8.6 13.4l6.8 4"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+    pin: '<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 17v4"/>',
+    textsize: '<path d="M4 7V5h10v2M9 5v14M7 19h4M15 13v-1h6v1M18 12v7M16.5 19h3"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'
+  };
+  function svgIcon(name) { return ICONS[name] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>' : ''; }
+  function applyIcons(root) {
+    (root || document).querySelectorAll('[data-icon]').forEach(function (el) {
+      var n = el.getAttribute('data-icon');
+      if (ICONS[n]) el.innerHTML = svgIcon(n);
+    });
+  }
+  applyIcons();
+
   var chat = document.getElementById('chat');
   var msgs = document.getElementById('msgs');
   var scrollPos = {};  // channel -> saved scroll position when switching away
@@ -1078,7 +1146,7 @@ const feedPage = `<!DOCTYPE html>
     allRow.className = 'row' + (current === 'all' ? ' active' : '');
     var allAva = document.createElement('div');
     allAva.className = 'ava';
-    allAva.style.background = 'linear-gradient(135deg,#37aee2,#1e88d2)';
+    allAva.style.background = 'linear-gradient(135deg,var(--accent),var(--accent))';
     allAva.textContent = '✦';
     var allWrap = document.createElement('div');
     allWrap.className = 'avawrap';
@@ -1236,7 +1304,7 @@ const feedPage = `<!DOCTYPE html>
     var n = visibleCount();
     if (current === 'all') {
       ava.innerHTML = '';
-      ava.style.background = 'linear-gradient(135deg,#37aee2,#1e88d2)';
+      ava.style.background = 'linear-gradient(135deg,var(--accent),var(--accent2))';
       ava.textContent = '✦';
       document.getElementById('headtitle').textContent = 'כל הערוצים';
       document.getElementById('headsub').textContent = (n ? n + ' הודעות' : '') + freshLabel(n ? ' · ' : '');
@@ -1248,7 +1316,7 @@ const feedPage = `<!DOCTYPE html>
       document.getElementById('headtitle').textContent = (ch && ch.title) || ('@' + current);
       document.getElementById('headsub').textContent = '@' + current + (n ? ' · ' + n + ' הודעות' : '') + freshLabel(' · ');
       var isMuted = !!(ch && ch.muted);
-      muteBtn.textContent = isMuted ? '🔕' : '🔔';
+      muteBtn.innerHTML = svgIcon(isMuted ? 'belloff' : 'bell');
       muteBtn.className = 'iconbtn' + (isMuted ? ' off' : '');
       muteBtn.title = isMuted ? 'בטל השתקה לערוץ' : 'השתק התראות לערוץ הזה';
       muteBtn.style.display = 'flex';
@@ -1440,6 +1508,75 @@ const feedPage = `<!DOCTYPE html>
     return true;
   }
 
+  // ----- my reactions (local, per device) ------------------------------------
+  // The viewer taps an emoji on a message; it is saved in this browser only.
+  // Telegram has no idea — there is no account to send a reaction with.
+  var REACT_SET = ['👍', '❤️', '🔥', '😮', '😢', '😂', '🙏', '✅'];
+  var myReacts = {};
+  try { myReacts = JSON.parse(localStorage.getItem('tgpopup-myreact') || '{}') || {}; } catch (e) {}
+  function saveMyReacts() { try { localStorage.setItem('tgpopup-myreact', JSON.stringify(myReacts)); } catch (e) {} }
+  function reactsRow(node) {
+    var r = node.querySelector('.reacts');
+    if (!r) {
+      r = document.createElement('div'); r.className = 'reacts';
+      node.appendChild(r);
+    }
+    return r;
+  }
+  function renderMyReact(node, key) {
+    var row = node.querySelector('.reacts');
+    var existing = node.querySelector('.react.mine');
+    if (existing) existing.remove();
+    var emoji = myReacts[key];
+    if (!emoji) {
+      // keep the add button only
+    }
+    var add = node.querySelector('.addreact');
+    if (!add) {
+      row = reactsRow(node);
+      add = document.createElement('span');
+      add.className = 'addreact'; add.title = 'הוסף תגובה';
+      add.innerHTML = svgIcon('plus');
+      add.onclick = function (ev) { ev.stopPropagation(); openReactPick(node, key, add); };
+      row.appendChild(add);
+    }
+    if (emoji) {
+      row = reactsRow(node);
+      var chip = document.createElement('span');
+      chip.className = 'react mine'; chip.title = 'התגובה שלך (נשמרת במכשיר) — לחץ להסרה';
+      chip.innerHTML = '<span class="re">' + emoji + '</span>';
+      chip.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, null); };
+      row.insertBefore(chip, add);
+    }
+  }
+  function applyMyReacts(node, key) { renderMyReact(node, key); }
+  function setMyReact(key, emoji) {
+    if (!key) return;
+    if (emoji) myReacts[key] = emoji; else delete myReacts[key];
+    saveMyReacts();
+    var node = document.getElementById('m' + key) || document.getElementById('sr_' + key);
+    if (node) renderMyReact(node, key);
+  }
+  function openReactPick(node, key, anchorEl) {
+    var pick = document.getElementById('reactpick');
+    pick.innerHTML = '';
+    REACT_SET.forEach(function (em) {
+      var s = document.createElement('span'); s.textContent = em;
+      s.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, myReacts[key] === em ? null : em); closeReactPick(); };
+      pick.appendChild(s);
+    });
+    pick.classList.add('open');
+    var r = (anchorEl || node).getBoundingClientRect();
+    var pw = pick.offsetWidth, ph = pick.offsetHeight;
+    var left = Math.min(Math.max(8, r.left + r.width / 2 - pw / 2), window.innerWidth - pw - 8);
+    var top = r.top - ph - 8; if (top < 8) top = r.bottom + 8;
+    pick.style.left = left + 'px'; pick.style.top = top + 'px';
+  }
+  function closeReactPick() { document.getElementById('reactpick').classList.remove('open'); }
+  document.addEventListener('click', function (ev) {
+    if (!ev.target.closest || (!ev.target.closest('#reactpick') && !ev.target.closest('.addreact'))) closeReactPick();
+  });
+
   var itemMeta = {}; // key -> light record for the digest
   function makeNode(it, fromSnap) {
     if (!fromSnap) rememberItem(it);
@@ -1451,11 +1588,13 @@ const feedPage = `<!DOCTYPE html>
     var node = holder.querySelector ? holder.querySelector('.msg') : holder.firstElementChild;
     if (!node) { return null; }
     node.setAttribute('data-ts', it.ts);
+    if (it.channel) node.style.setProperty('--chan', 'hsl(' + hue(it.channel) + ',42%,58%)');
     var tm = node.querySelector('.msgtime');
     if (tm && it.ts) { tm.textContent = fmtStamp(it.ts); tm.title = new Date(it.ts * 1000).toLocaleString('he-IL'); }
     if (it.seq && it.seq > lastSeq) lastSeq = it.seq;
     noteItem(it);
     if (current !== 'all' && it.channel !== current) node.classList.add('hidden');
+    applyMyReacts(node, it.key);
     // Images fade in as they load instead of popping.
     var imgs = node.querySelectorAll('.photo img');
     for (var i = 0; i < imgs.length; i++) {
@@ -2140,6 +2279,7 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('searchclose').onclick = closeSearch;
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
+      if (document.getElementById('reactpick').classList.contains('open')) { closeReactPick(); return; }
       if (document.getElementById('msgsheet').classList.contains('open')) { closeSheet(); return; }
       if (document.getElementById('digestback').classList.contains('open')) { closeDigest(); return; }
       if (document.getElementById('moremenu').classList.contains('open')) { closeMore(); return; }
@@ -2276,7 +2416,7 @@ const feedPage = `<!DOCTYPE html>
   function applyTheme() {
     document.body.classList.toggle('light', theme === 'light');
     document.documentElement.classList.toggle('light', theme === 'light');
-    document.getElementById('themebtn').textContent = theme === 'light' ? '🌙' : '🌓';
+    var tb = document.getElementById('themebtn'); tb.innerHTML = svgIcon(theme === 'light' ? 'sun' : 'moon');
     try { localStorage.setItem('tgpopup-theme', theme); } catch (e) {}
     var tc = document.querySelector('meta[name="theme-color"]:not([media])');
     if (!tc) { tc = document.createElement('meta'); tc.name = 'theme-color'; document.head.appendChild(tc); }
@@ -2382,11 +2522,12 @@ const feedPage = `<!DOCTYPE html>
   var setPopups = true, setSound = true;
   function paintToggles() {
     var p = document.getElementById('tglpopups');
-    p.textContent = setPopups ? '🔔' : '🔕';
-    p.className = 'iconbtn' + (setPopups ? '' : ' off');
-    var s = document.getElementById('tglsound');
-    s.textContent = setSound ? '🔊' : '🔇';
-    s.className = 'iconbtn' + (setSound ? '' : ' off');
+    p.innerHTML = svgIcon('monitor');
+    p.className = 'iconbtn' + (setPopups ? ' on' : ' off');
+    p.title = setPopups ? 'חלוניות במחשב פועלות' : 'חלוניות במחשב כבויות';
+    var sB = document.getElementById('tglsound');
+    sB.innerHTML = svgIcon(setSound ? 'volume' : 'volumeoff');
+    sB.className = 'iconbtn' + (setSound ? ' on' : ' off');
   }
   function toast(text) {
     var t = document.getElementById('toast');
@@ -2464,8 +2605,8 @@ const feedPage = `<!DOCTYPE html>
     var b = document.getElementById('tglnotif');
     var granted = ('Notification' in window) && Notification.permission === 'granted';
     var on = notifOn && granted;
-    b.textContent = on ? '🔔' : '🔕';
-    b.className = 'iconbtn keep' + (on ? '' : ' off');
+    b.innerHTML = svgIcon(on ? 'bell' : 'belloff');
+    b.className = 'iconbtn keep' + (on ? ' on' : ' off');
     b.title = on ? 'התראות בדפדפן פועלות — לחץ לכיבוי' : 'הפעל התראות בדפדפן';
   }
   document.getElementById('tglnotif').onclick = function () {
@@ -2571,6 +2712,7 @@ const feedPage = `<!DOCTYPE html>
     }
     var text = (meta.text || meta.preview || (node.querySelector('.msgtext') || {}).textContent || '').trim();
     var link = 'https://t.me/' + (meta.channel || '') + '/' + (meta.id || '');
+    it('😊', (myReacts[key] ? 'שנה / הסר תגובה' : 'הוסף תגובה שלך'), function () { openReactPick(node, key, node); });
     it('📋', 'העתק טקסט', function () { copyText(text, 'הטקסט הועתק'); });
     it('🔗', 'העתק קישור לפוסט', function () { copyText(link, 'הקישור הועתק'); });
     if (navigator.share) it('📤', 'שתף…', function () { navigator.share({ title: (ch && ch.title) || '', text: text, url: link }).catch(function () {}); });
