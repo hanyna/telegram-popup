@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "7.5"
+const version = "7.6"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -451,6 +451,7 @@ func main() {
 
 		feed.BindAddr = cloudBind
 		feed.AccessKey = cloudKey
+		feed.AdminKey = adminKeyEnv()
 		if feedURL, fErr := feed.Start(cfg.FeedPort); fErr != nil {
 			logLine("דף הערוץ החי לא עלה: %v", fErr)
 			if isAddrInUse(fErr) || strings.Contains(fErr.Error(), "in use") || strings.Contains(fErr.Error(), "Only one usage") {

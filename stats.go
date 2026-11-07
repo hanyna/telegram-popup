@@ -131,6 +131,11 @@ func (s *statsStore) snapshot(activeNow int) map[string]any {
 
 func (f *Feed) handleStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if !f.isAdmin(r) {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "admin required"})
+		return
+	}
 	if f.stats == nil {
 		_ = json.NewEncoder(w).Encode(map[string]any{"disabled": true})
 		return

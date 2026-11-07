@@ -834,7 +834,7 @@ const feedPage = `<!DOCTYPE html>
         <div class="iconbtn keep" id="searchbtn" data-icon="search" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון"></div>
         <div class="iconbtn" id="filterbtn" data-icon="filter" role="button" tabindex="0" title="סינון לפי סוג" aria-label="סינון"></div>
         <div class="iconbtn keep" id="digestbtn" data-icon="list" role="button" tabindex="0" title="מה פספסתי / מה היה היום" aria-label="תקציר"></div>
-        <div class="iconbtn" id="statsbtn" data-icon="chart" role="button" tabindex="0" title="נתוני כניסות" aria-label="נתונים"></div>
+        <div class="iconbtn" id="statsbtn" data-icon="chart" role="button" tabindex="0" title="נתוני כניסות" aria-label="נתונים" style="display:none"></div>
         <div class="iconbtn keep" id="refreshbtn" data-icon="refresh" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו"></div>
         <div class="iconbtn" id="tglmute" data-icon="bell" role="button" tabindex="0" style="display:none"></div>
         <div class="iconbtn" id="tglpopups" data-icon="monitor" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות"></div>
@@ -2635,14 +2635,19 @@ const feedPage = `<!DOCTYPE html>
     setPopups = d.popups !== false;
     setSound = d.sound !== false;
     if (d.theme === 'light' || d.theme === 'dark') { theme = d.theme; applyTheme(); }
+    isAdmin = !!d.admin;
     paintToggles();
     applyCaps(!!d.cloud);
   }).catch(function () {});
 
   // Online there is no desktop: no popups, no sounds, no keyword filter for
   // popups, no "start with Windows". The phone gets browser notifications.
+  var isAdmin = false;
   function applyCaps(cloud) {
     isCloud = cloud;
+    // Stats are admin-only: hide the button for ordinary viewers.
+    var sb = document.getElementById('statsbtn');
+    if (sb) sb.style.display = isAdmin ? 'flex' : 'none';
     var hide = cloud ? ['tglpopups', 'tglsound', 'kwbtn'] : [];
     hide.forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
     var nb = document.getElementById('tglnotif');
@@ -2978,7 +2983,7 @@ const feedPage = `<!DOCTYPE html>
       m.appendChild(d);
     }
     item('📋', 'מה פספסתי / מה היה היום', function () { openDigest(); });
-    item('📊', 'נתוני כניסות', function () { openStats(); });
+    if (isAdmin) item('📊', 'נתוני כניסות', function () { openStats(); });
     item('🔠', 'גודל טקסט', cycleTxt);
     item('⚗️', 'סינון לפי סוג', function () { document.getElementById('filterbtn').click(); });
     item(theme === 'light' ? '🌙' : '🌓', 'מצב בהיר / כהה', function () { document.getElementById('themebtn').click(); });

@@ -66,6 +66,13 @@ func applyCloudEnv(cfg *Config) (bindAddr, accessKey string) {
 	return "0.0.0.0", os.Getenv("TGPOPUP_KEY")
 }
 
+// adminKeyEnv is a second secret, separate from the viewing key. Only someone
+// who knows it sees the stats panel. Empty → no admin in the cloud (stats
+// stay desktop-only).
+func adminKeyEnv() string {
+	return os.Getenv("TGPOPUP_ADMIN_KEY")
+}
+
 // envChannels parses TGPOPUP_CHANNELS ("elisha_yered, hakolhayehudi, ...").
 func envChannels() []string {
 	raw := os.Getenv("TGPOPUP_CHANNELS")
@@ -102,6 +109,9 @@ func sessionToken(key string) string {
 	mac.Write([]byte("tgpopup-session-v1"))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
+// adminToken derives the admin cookie value from the admin key.
+func adminToken(key string) string { return sessionToken(key + "|admin") }
 
 // publicAsset: PWA plumbing the browser fetches before (or without) a cookie
 // — manifest, service worker, icons, the offline/wake page. None of them

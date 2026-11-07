@@ -102,6 +102,24 @@ type Feed struct {
 	// bind loopback only, no access key.
 	BindAddr  string
 	AccessKey string
+	// AdminKey (cloud only): a second secret that unlocks the stats panel.
+	// Empty in the cloud means stats are hidden for everyone; on the desktop
+	// the local user is always admin regardless.
+	AdminKey string
+}
+
+// isAdmin reports whether this request may see admin-only data (stats).
+// The desktop/local user always qualifies; in the cloud an admin cookie
+// matching AdminKey is required.
+func (f *Feed) isAdmin(r *http.Request) bool {
+	if f.BindAddr == "" {
+		return true // local machine = owner
+	}
+	if f.AdminKey == "" {
+		return false
+	}
+	c, err := r.Cookie("tgpopup_admin")
+	return err == nil && c.Value == adminToken(f.AdminKey)
 }
 
 // SetChannelInfo records a channel's display name and photo. New or changed
@@ -375,6 +393,16 @@ func (f *Feed) handlePage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
+	}
+	if f.AdminKey != "" {
+		if a := r.URL.Query().Get("admin"); a != "" {
+			if a == f.AdminKey {
+				http.SetCookie(w, &http.Cookie{Name: "tgpopup_admin", Value: adminToken(f.AdminKey), Path: "/",
+					MaxAge: 365 * 24 * 3600, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
+			}
+			http.Redirect(w, r, "/", http.StatusSeeOther) // strip ?admin from the URL
+			return
+		}
 	}
 	if f.stats != nil {
 		f.stats.recordView(ensureDeviceID(w, r))
@@ -1190,6 +1218,7 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"cloud":     f.BindAddr != "",
 			"version":   version,
 			"autostart": f.SetAutostart != nil && f.BindAddr == "",
+			"admin":     f.isAdmin(r),
 		})
 
 	case http.MethodPost:
