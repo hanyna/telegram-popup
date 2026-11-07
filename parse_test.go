@@ -340,3 +340,25 @@ func TestReactionsParsed(t *testing.T) {
 		t.Fatalf("expected no reactions, got %+v", none[0].Reactions)
 	}
 }
+
+func TestPhotoAspectReserved(t *testing.T) {
+	block := `<div class="tgme_widget_message" data-post="c/20">
+	  <a class="tgme_widget_message_photo_wrap" style="background-image:url('https://cdn4.telesco.pe/file/p.jpg');padding-top:133.33%"></a>
+	  <div class="tgme_widget_message_text">picture</div>
+	  <time datetime="2026-11-01T10:00:00+00:00"></time>
+	</div>`
+	ms := ParseMessages(block)
+	if len(ms) != 1 || ms[0].AspectPct != "133.33" {
+		t.Fatalf("aspect not captured: %+v", ms[0])
+	}
+	h := feedMediaHTML(ms[0])
+	if !strings.Contains(h, "aspect-ratio:100/133.33") {
+		t.Fatalf("aspect-ratio not reserved in html: %s", h)
+	}
+	// Out-of-range percentages are ignored.
+	bad := `<div class="tgme_widget_message" data-post="c/21"><a class="tgme_widget_message_photo_wrap" style="url('x');padding-top:999%"></a><time datetime="2026-11-01T10:00:00+00:00"></time></div>`
+	m2 := ParseMessages(bad)
+	if len(m2) == 1 && m2[0].AspectPct != "" {
+		t.Fatalf("out-of-range aspect should be ignored, got %q", m2[0].AspectPct)
+	}
+}

@@ -44,6 +44,9 @@ type Message struct {
 	// Reactions: the emoji reaction counts Telegram already shows under the
 	// public post. Read-only — there is no account to send one with.
 	Reactions []Reaction `json:"react,omitempty"`
+	// AspectPct is the photo's height/width as a percentage (Telegram's own
+	// padding-top value). Empty when unknown.
+	AspectPct string `json:"ar,omitempty"`
 }
 
 // Reaction is one emoji and how many people reacted with it.
@@ -149,9 +152,13 @@ var (
 	reDataPost = regexp.MustCompile(`data-post="([^"/]+)/(\d+)"`)
 	reTime     = regexp.MustCompile(`<time[^>]*datetime="([^"]+)"`)
 	rePhoto    = regexp.MustCompile(`tgme_widget_message_photo_wrap[^>]*?url\('([^']+)'\)`)
-	reVideo    = regexp.MustCompile(`<video[^>]*?src="([^"]+)"`)
-	reVideoTh  = regexp.MustCompile(`tgme_widget_message_video_thumb[^>]*?url\('([^']+)'\)`)
-	reTooBig   = regexp.MustCompile(`(?i)Media is too big|message_media_not_supported_label[^<]*too big`)
+	// Telegram reserves space for a photo with padding-top:<height/width>%%.
+	// Capturing it lets the page reserve the same box, so nothing jumps when
+	// the image finally loads (or when NetFree releases it a bit later).
+	reAspect  = regexp.MustCompile(`padding-top:([0-9.]+)%`)
+	reVideo   = regexp.MustCompile(`<video[^>]*?src="([^"]+)"`)
+	reVideoTh = regexp.MustCompile(`tgme_widget_message_video_thumb[^>]*?url\('([^']+)'\)`)
+	reTooBig  = regexp.MustCompile(`(?i)Media is too big|message_media_not_supported_label[^<]*too big`)
 	// Reactions block on the public page, and one reaction inside it. The
 	// markup varies (emoji vs. custom image, with/without a count), so the
 	// parsing is deliberately tolerant: grab the reactions region, then pull
@@ -217,6 +224,13 @@ func ParseMessages(page string) []Message {
 			if len(all) > 1 {
 				for _, p := range all {
 					msg.Photos = append(msg.Photos, html.UnescapeString(p[1]))
+				}
+			}
+			// Reserve the photo's box so the layout never jumps on load: use
+			// Telegram's own height/width percentage (padding-top).
+			if m := reAspect.FindStringSubmatch(block); m != nil {
+				if v, err := strconv.ParseFloat(m[1], 64); err == nil && v >= 15 && v <= 300 {
+					msg.AspectPct = m[1]
 				}
 			}
 		}

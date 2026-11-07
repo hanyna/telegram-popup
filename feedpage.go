@@ -301,8 +301,14 @@ const feedPage = `<!DOCTYPE html>
     animation:pop 0.18s ease-out;
   }
 
-  .photo img { opacity:0; transition:opacity 0.35s ease; }
+  .photo img { opacity:0; transition:opacity 0.35s ease; background:var(--bubble2); }
   .photo img.ld { opacity:1; }
+  .photo { position:relative; }
+  /* a blocked/held image keeps its reserved box and offers a reload tap */
+  .imgretry { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    background:var(--bubble2); border:1px solid var(--line); border-radius:11px; color:var(--muted); font-size:12.5px; cursor:pointer; text-align:center; padding:10px; }
+  .imgretry svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.7; }
+  .imgretry.spin svg { animation:spin 0.8s linear infinite; }
 
   #chat {
     flex:1; overflow-y:auto;
@@ -1654,9 +1660,16 @@ const feedPage = `<!DOCTYPE html>
     var imgs = node.querySelectorAll('.photo img');
     for (var i = 0; i < imgs.length; i++) {
       (function (im) {
-        if (im.complete) { im.classList.add('ld'); return; }
-        im.onload = function () { im.classList.add('ld'); };
-        im.onerror = function () { im.classList.add('ld'); };
+        if (im.complete && im.naturalWidth > 0) { im.classList.add('ld'); return; }
+        im.onload = function () {
+          im.classList.add('ld');
+          var par = im.parentNode;
+          if (par) { var o = par.querySelector('.imgretry'); if (o) o.remove(); if (par.style) par.style.minHeight = ''; }
+        };
+        im.onerror = function () {
+          im.classList.add('ld');
+          if (im.closest && im.closest('.photo, .stickerbox, .album')) handleImgError(im);
+        };
       })(imgs[i]);
     }
     // GIF-like previews play ONLY while on screen, always muted. Playing
@@ -1787,6 +1800,35 @@ const feedPage = `<!DOCTYPE html>
   // into a wall of overlapping sound ("the videos open by themselves" — the
   // user diagnosed it exactly). Only muted GIF-like previews (autoplay attr)
   // resume; everything else just gets a working source and WAITS for a click.
+  function handleImgError(img) {
+    var n = parseInt(img.getAttribute('data-try') || '0', 10);
+    var box = img.parentNode;
+    if (!box) return;
+    if (n < 2) {
+      img.setAttribute('data-try', n + 1);
+      var src = img.getAttribute('src');
+      // Re-request the same URL after a short wait (NetFree releases held
+      // images after review; a plain reload then succeeds).
+      setTimeout(function () { try { img.src = ''; img.src = src; } catch (e) {} }, n === 0 ? 2500 : 6000);
+      return;
+    }
+    // Give up auto-retrying: offer a manual reload over the reserved box.
+    if (box.querySelector('.imgretry')) return;
+    if (box.classList && box.classList.contains('photo')) box.style.minHeight = box.style.minHeight || '110px';
+    var o = document.createElement('div'); o.className = 'imgretry';
+    o.innerHTML = svgIcon('refresh') + '<span>התמונה עדיין נטענת — הקש לניסיון חוזר</span>';
+    o.onclick = function (ev2) {
+      ev2.stopPropagation();
+      o.classList.add('spin');
+      img.setAttribute('data-try', '0');
+      var src = img.getAttribute('src');
+      try { img.src = ''; img.src = src; } catch (e) {}
+      img.onload = function () { o.remove(); if (box.style) box.style.minHeight = ''; };
+      setTimeout(function () { o.classList.remove('spin'); }, 4000);
+    };
+    box.appendChild(o);
+  }
+
   chat.addEventListener('error', function (ev) {
     var v = ev.target;
     if (!v || v.tagName !== 'VIDEO') return;

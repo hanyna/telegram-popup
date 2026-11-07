@@ -1433,7 +1433,7 @@ func feedMediaHTML(m Message) string {
 		b.WriteString(`<div class="stickerbox"><img src="` + html.EscapeString(m.Sticker) + `" alt="" loading="lazy"></div>`)
 
 	case m.Photo != "":
-		b.WriteString(`<div class="photo"><img src="` + html.EscapeString(m.Photo) + `" alt="" loading="lazy" decoding="async"></div>`)
+		b.WriteString(`<div class="photo"><img src="` + html.EscapeString(m.Photo) + `" alt="" loading="lazy" decoding="async"` + arStyle(m.AspectPct) + `></div>`)
 	}
 
 	if m.Voice != "" {
@@ -1497,6 +1497,16 @@ func feedMediaHTML(m Message) string {
 func safeHref(u string) bool {
 	l := strings.ToLower(strings.TrimSpace(u))
 	return strings.HasPrefix(l, "https://") || strings.HasPrefix(l, "http://")
+}
+
+// arStyle reserves a photo's box via CSS aspect-ratio (width/height), from
+// Telegram's height/width percentage, so the layout does not jump on load.
+func arStyle(pct string) string {
+	if pct == "" {
+		return ""
+	}
+	// aspect-ratio = width/height = 100 / pct
+	return ` style="aspect-ratio:100/` + html.EscapeString(pct) + `"`
 }
 
 func feedStamp(iso string) string {
