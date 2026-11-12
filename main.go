@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "8.0"
+const version = "8.1"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other

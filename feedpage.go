@@ -390,7 +390,9 @@ const feedPage = `<!DOCTYPE html>
     border-radius:14px 14px 14px 4px;
     padding:8px 12px 9px;
     margin-bottom:7px;
-    max-width:86%;
+    width:fit-content;
+    min-width:180px;
+    max-width:min(600px, 86%);
     box-shadow:0 1px 2px rgba(0,0,0,0.12);
     /* A thin edge in the channel's colour — quiet identity, no loud header. */
     border-inline-start:2.5px solid var(--chan, var(--line2));
@@ -416,7 +418,8 @@ const feedPage = `<!DOCTYPE html>
   body.single .msgchan { display:none; }
   .msgtime { color:var(--muted); direction:ltr; }
 
-  :root { --txt:14px; }
+  :root { --txt:15px; }
+  .msg:has(.photo, .album, .vidwrap, .toobig, .linkcard) { width:min(460px, 86%); }
   body.txt-l { --txt:16px; }
   body.txt-xl { --txt:18.5px; }
   .msgtext { font-size:var(--txt); line-height:1.6; word-wrap:break-word; overflow-wrap:anywhere; unicode-bidi:plaintext; }
@@ -429,10 +432,10 @@ const feedPage = `<!DOCTYPE html>
   .react .rc { font-variant-numeric:tabular-nums; }
   /* the viewer's own reaction (saved on this device, never sent anywhere) */
   .react.mine { background:rgba(74,147,196,0.18); border-color:rgba(74,147,196,0.5); color:var(--fg); cursor:pointer; }
-  .addreact { display:inline-flex; align-items:center; justify-content:center; width:24px; height:22px;
+  .addreact { position:absolute; left:8px; bottom:-9px; z-index:2; background:var(--panel); display:inline-flex; align-items:center; justify-content:center; width:24px; height:22px;
     border:1px dashed var(--line2); border-radius:99px; color:var(--muted); cursor:pointer; font-size:13px;
     opacity:0; transition:opacity 0.12s; }
-  .msg:hover .addreact, .reacts:hover .addreact { opacity:0.8; }
+  .msg:hover .addreact, .addreact:focus-visible { opacity:1; }
   @media (hover:none) { .addreact { display:none; } } /* touch: use long-press */
   .addreact:hover { color:var(--accent); border-color:var(--accent); }
   .addreact svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; }
@@ -846,7 +849,8 @@ const feedPage = `<!DOCTYPE html>
     .headbtns .iconbtn { width:32px; height:32px; font-size:14px; }
     #refreshbtn { font-size:17px; }
     #chat { padding:10px 8px 18px; }
-    .msg { max-width:100%; }
+    .msg { max-width:100%; min-width:140px; }
+    .msg:has(.photo, .album, .vidwrap, .toobig, .linkcard) { width:100%; }
     .msgtext { font-size:var(--txt); line-height:1.5; }
     .headbtns .iconbtn { display:none !important; }
     .headbtns .iconbtn.keep, #morebtn { display:flex !important; }
@@ -1684,31 +1688,33 @@ const feedPage = `<!DOCTYPE html>
     return r;
   }
   function renderMyReact(node, key) {
-    var row = node.querySelector('.reacts');
     var existing = node.querySelector('.react.mine');
     if (existing) existing.remove();
-    var emoji = myReacts[key];
-    if (!emoji) {
-      // keep the add button only
-    }
-    var add = node.querySelector('.addreact');
-    if (!add) {
-      row = reactsRow(node);
-      add = document.createElement('span');
+    // The hover "+" sits in the bubble corner, absolutely positioned, so it no
+    // longer adds an empty strip under every message.
+    if (!node.querySelector('.addreact')) {
+      var add = document.createElement('span');
       add.className = 'addreact'; add.title = 'הוסף תגובה';
+      add.setAttribute('role', 'button'); add.setAttribute('tabindex', '0'); add.setAttribute('aria-label', 'הוסף תגובה');
       add.innerHTML = svgIcon('plus');
       add.onclick = function (ev) { ev.stopPropagation(); openReactPick(node, key, add); };
-      row.appendChild(add);
+      add.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); openReactPick(node, key, add); } };
+      node.appendChild(add);
     }
+    var emoji = myReacts[key];
     if (emoji) {
-      row = reactsRow(node);
+      var row = reactsRow(node);
       var chip = document.createElement('span');
-      chip.className = 'react mine'; chip.title = 'התגובה שלך (נשמרת במכשיר) — לחץ להסרה';
+      chip.className = 'react mine'; chip.title = 'התגובה שלך — לחיצה מסירה';
       chip.innerHTML = '<span class="re">' + emoji + '</span>';
       chip.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, null); };
-      row.insertBefore(chip, add);
+      row.insertBefore(chip, row.firstChild);
+    } else {
+      var r = node.querySelector('.reacts');
+      if (r && !r.children.length) r.remove();
     }
   }
+
   function applyMyReacts(node, key) { renderMyReact(node, key); }
   function setMyReact(key, emoji) {
     if (!key) return;
