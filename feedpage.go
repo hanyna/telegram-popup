@@ -26,6 +26,12 @@ const feedPage = `<!DOCTYPE html>
   // Theme before first paint: no dark flash for light-mode users (and the
   // other way round). The server's saved theme still wins once it loads.
   try { if (localStorage.getItem('tgpopup-theme') === 'light') document.documentElement.classList.add('light'); } catch (e) {}
+  try {
+    var A = JSON.parse(localStorage.getItem('tgpopup-a11y') || '{}') || {};
+    var H = document.documentElement;
+    ['contrast','gray','links','font','still'].forEach(function (k) { if (A[k]) H.classList.add('a11y-' + k); });
+    if (A.z) H.style.setProperty('--z', A.z);
+  } catch (e) {}
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2337aee2'/%3E%3Cstop offset='1' stop-color='%2331c48d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='url(%23g)'/%3E%3Cpath d='M18 20h28a4 4 0 014 4v12a4 4 0 01-4 4H31l-8 7v-7h-5a4 4 0 01-4-4V24a4 4 0 014-4z' fill='%23fff'/%3E%3C/svg%3E">
 <style>
@@ -39,7 +45,7 @@ const feedPage = `<!DOCTYPE html>
     --line2:rgba(255,255,255,0.11);
     --fg:#e6e9ef; --muted:#8c94a2; --dim:#5f6775;
     --accent:#4a93c4; --accent2:#4aa88a;
-    --headbg:rgba(17,21,28,0.82);
+    --headbg:#11151c;
     --markbg:rgba(74,147,196,0.30);
   }
   body.light, html.light body {
@@ -50,7 +56,7 @@ const feedPage = `<!DOCTYPE html>
     --line2:rgba(22,30,46,0.17);
     --fg:#20262f; --muted:#5a6475; --dim:#8690a0;
     --accent:#2b7fb8; --accent2:#2e8f6e;
-    --headbg:rgba(255,255,255,0.9);
+    --headbg:#ffffff;
     --markbg:rgba(43,127,184,0.22);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -198,7 +204,6 @@ const feedPage = `<!DOCTYPE html>
     display:flex; align-items:center; gap:11px;
     padding:11px 20px;
     background:var(--headbg);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
     border-bottom:1px solid var(--line);
     z-index:5;
   }
@@ -301,7 +306,9 @@ const feedPage = `<!DOCTYPE html>
     animation:pop 0.18s ease-out;
   }
 
-  .photo img { opacity:0; transition:opacity 0.35s ease; background:var(--bubble2); }
+  .photo img { opacity:0; transition:opacity 0.35s ease; background:var(--bubble2);
+    max-height:min(46vh, 420px); object-fit:cover; cursor:zoom-in; }
+  .album img { max-height:min(34vh, 300px); }
   .photo img.ld { opacity:1; }
   .photo { position:relative; }
   /* a blocked/held image keeps its reserved box and offers a reload tap */
@@ -374,7 +381,6 @@ const feedPage = `<!DOCTYPE html>
     background:rgba(255,255,255,0.05); border:1px solid var(--line);
     color:var(--muted); font-size:11.5px;
     border-radius:99px; padding:4px 14px;
-    backdrop-filter:blur(4px);
   }
 
   .msg {
@@ -382,8 +388,8 @@ const feedPage = `<!DOCTYPE html>
     background:var(--bubble);
     border:1px solid var(--line);
     border-radius:14px 14px 14px 4px;
-    padding:10px 14px 11px;
-    margin-bottom:9px;
+    padding:8px 12px 9px;
+    margin-bottom:7px;
     max-width:86%;
     box-shadow:0 1px 2px rgba(0,0,0,0.12);
     /* A thin edge in the channel's colour — quiet identity, no loud header. */
@@ -403,9 +409,9 @@ const feedPage = `<!DOCTYPE html>
 
   .msghead {
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    margin-bottom:6px; font-size:11.5px;
+    margin-bottom:3px; font-size:11px;
   }
-  .msgchan { color:var(--chan, var(--accent2)); font-weight:600; cursor:pointer; letter-spacing:0.1px; }
+  .msgchan { color:var(--chan, var(--accent2)); font-weight:600; cursor:pointer; letter-spacing:0.1px; direction:ltr; unicode-bidi:isolate; }
   .msgchan:hover { text-decoration:underline; }
   body.single .msgchan { display:none; }
   .msgtime { color:var(--muted); direction:ltr; }
@@ -473,6 +479,53 @@ const feedPage = `<!DOCTYPE html>
     border:none; background:#0d1120;
   }
   .embedwrap { cursor:pointer; }
+  /* ===== accessibility (IS 5568 / WCAG 2.0 AA) ===== */
+  :focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  .skip { position:fixed; right:-9999px; top:8px; z-index:100; background:var(--accent); color:#fff; padding:8px 14px; border-radius:8px; text-decoration:none; }
+  .skip:focus { right:8px; }
+  #app { zoom:var(--z, 1); height:calc(100vh / var(--z, 1)); height:calc(100dvh / var(--z, 1)); }
+  html.a11y-contrast body, html.a11y-contrast body.light {
+    --bg:#000; --bg2:#000; --panel:#000; --panel2:#000; --bubble:#000; --bubble2:#0a0a0a;
+    --fg:#fff; --muted:#fff; --dim:#e6e6e6; --line:#fff; --line2:#fff;
+    --accent:#ffe14d; --accent2:#ffe14d; --headbg:#000; --markbg:#ffe14d55;
+  }
+  html.a11y-contrast .msg { border:1px solid #fff; }
+  html.a11y-contrast a { color:#ffe14d !important; }
+  html.a11y-gray { filter:grayscale(1); }
+  html.a11y-links a, html.a11y-links .msgchan { text-decoration:underline !important; text-underline-offset:3px; outline:1px dashed currentColor; outline-offset:2px; }
+  html.a11y-font body { font-family:Arial,"Noto Sans Hebrew",sans-serif !important; letter-spacing:0.02em; word-spacing:0.1em; }
+  html.a11y-font .msgtext { line-height:1.85; }
+  html.a11y-still *, html.a11y-still *::before, html.a11y-still *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+  #a11ybtn { position:fixed; left:0; top:42%; z-index:44; width:38px; height:42px; border:0; border-radius:0 12px 12px 0;
+    background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3); opacity:0.88; }
+  #a11ybtn:hover, #a11ybtn:focus-visible { opacity:1; }
+  #a11ybtn svg { width:24px; height:24px; fill:currentColor; }
+  #a11yback { position:fixed; inset:0; z-index:49; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
+  #a11yback.open { display:flex; }
+  .a11ycard { background:var(--panel); border:1px solid var(--line2); border-radius:18px; width:min(94vw,400px); max-height:90vh; overflow-y:auto; padding:18px; }
+  .a11ycard h2 { font-size:18px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  .a11ygrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .a11yopt { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:74px; padding:10px 8px;
+    background:var(--bubble); border:1px solid var(--line); border-radius:12px; color:var(--fg); font:inherit; font-size:13.5px; cursor:pointer; text-align:center; }
+  .a11yopt .ai { font-size:20px; line-height:1; }
+  .a11yopt[aria-pressed="true"] { border-color:var(--accent); background:rgba(74,147,196,0.16); color:var(--fg); font-weight:600; }
+  .a11ysize { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px;
+    background:var(--bubble); border:1px solid var(--line); border-radius:12px; }
+  .a11ysize button { width:44px; height:40px; border:1px solid var(--line2); border-radius:10px; background:transparent; color:var(--fg); font:inherit; font-size:18px; font-weight:700; cursor:pointer; }
+  .a11ysize span { font-size:14px; }
+  .a11yfoot { display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:8px; flex-wrap:wrap; font-size:13px; }
+  .a11yfoot a { color:var(--accent); }
+  .a11yfoot button { padding:8px 14px; border:1px solid var(--line2); border-radius:10px; background:transparent; color:var(--fg); font:inherit; font-size:13px; cursor:pointer; }
+  .legalfoot { padding:6px 10px 2px; font-size:11.5px; text-align:center; }
+  .legalfoot a { color:var(--dim); text-decoration:none; }
+  .legalfoot a:hover { text-decoration:underline; }
+  @media (max-width:680px) {
+    .legalfoot { display:none; }
+    /* phones: sit in the empty bottom of the channel rail, never over messages */
+    #a11ybtn { left:auto; right:9px; top:auto; bottom:calc(14px + env(safe-area-inset-bottom)); width:40px; height:40px; border-radius:12px; }
+  }
+
   /* stats panel */
   #statsback { position:fixed; inset:0; z-index:48; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
   #statsback.open { display:flex; }
@@ -572,7 +625,6 @@ const feedPage = `<!DOCTYPE html>
   .modal-back {
     position:fixed; inset:0; background:rgba(5,7,14,0.75);
     display:none; align-items:center; justify-content:center; z-index:40;
-    backdrop-filter:blur(4px);
   }
   .modal {
     background:linear-gradient(160deg,var(--panel2),var(--panel));
@@ -771,7 +823,13 @@ const feedPage = `<!DOCTYPE html>
   body.light .spin { border-color:rgba(20,30,60,0.15); border-top-color:var(--accent); }
 
   @media (max-width:680px) {
-    #side { width:68px; }
+    #side { width:58px; }
+    .sidehead { display:none !important; }
+    .row .ava, .row .avawrap > .ava { width:40px; height:40px; font-size:15px; }
+    .row { width:48px; height:48px; margin:4px auto; padding:0; border-radius:14px; display:flex; align-items:center; justify-content:center; }
+    .row.active::before { display:none; }
+    .photo img { max-height:min(36vh, 300px); }
+    .album img { max-height:min(26vh, 220px); }
     .rowmid, .rowside, .appmeta { display:none; }
     .row { justify-content:center; padding:8px 2px; }
     .row.active::before { right:-2px; }
@@ -787,8 +845,9 @@ const feedPage = `<!DOCTYPE html>
     .headbtns { gap:5px; }
     .headbtns .iconbtn { width:32px; height:32px; font-size:14px; }
     #refreshbtn { font-size:17px; }
-    #chat { padding:12px 10px 20px; }
-    .msg { max-width:96%; }
+    #chat { padding:10px 8px 18px; }
+    .msg { max-width:100%; }
+    .msgtext { font-size:var(--txt); line-height:1.5; }
     .headbtns .iconbtn { display:none !important; }
     .headbtns .iconbtn.keep, #morebtn { display:flex !important; }
     #searchbar { padding:8px 10px; }
@@ -802,6 +861,7 @@ const feedPage = `<!DOCTYPE html>
 </style>
 </head>
 <body>
+<a class="skip" href="#chat">דלג לתוכן</a>
 <div id="app">
   <aside id="side">
     <div class="sidehead">
@@ -824,6 +884,7 @@ const feedPage = `<!DOCTYPE html>
     <div class="autostartrow" id="autostartrow" style="display:none">
       <label><input type="checkbox" id="autostartchk"> הפעל עם ווינדוס</label>
     </div>
+    <div class="legalfoot"><a href="/terms" target="_blank" rel="noopener">תקנון</a> · <a href="/accessibility" target="_blank" rel="noopener">נגישות</a></div>
     <div class="addwrap"><button id="addbtn"><span class="txt">הוסף ערוץ</span><span class="plus" data-icon="plus" style="display:none"></span></button></div>
   </aside>
 
@@ -895,6 +956,30 @@ const feedPage = `<!DOCTYPE html>
 <div id="sheetback"></div>
 <div id="reactpick"></div>
 <div id="msgsheet" role="menu"></div>
+<button id="a11ybtn" aria-label="תפריט נגישות" title="נגישות"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4" r="2"/><path d="M19 8.5c-2 .6-4.3 1-7 1s-5-.4-7-1l-.5 1.9c1.8.6 3.8.9 5.5 1.1v3.3l-2.3 6.4 1.9.7 2.4-6.2 2.4 6.2 1.9-.7-2.3-6.4v-3.3c1.7-.2 3.7-.5 5.5-1.1z"/></svg></button>
+<div id="a11yback" role="dialog" aria-modal="true" aria-labelledby="a11ytitle">
+  <div class="a11ycard">
+    <h2><span id="a11ytitle">תפריט נגישות</span><button class="iconbtn" id="a11yclose" data-icon="close" aria-label="סגור תפריט נגישות"></button></h2>
+    <div class="a11ygrid">
+      <div class="a11ysize" role="group" aria-label="גודל תצוגה">
+        <button id="a11yminus" aria-label="הקטנת תצוגה">א−</button>
+        <span id="a11yzlabel" aria-live="polite">גודל תצוגה: 100%</span>
+        <button id="a11yplus" aria-label="הגדלת תצוגה">א+</button>
+      </div>
+      <button class="a11yopt" data-a11y="contrast" aria-pressed="false"><span class="ai" aria-hidden="true">◐</span>ניגודיות גבוהה</button>
+      <button class="a11yopt" data-a11y="gray" aria-pressed="false"><span class="ai" aria-hidden="true">▦</span>גווני אפור</button>
+      <button class="a11yopt" data-a11y="links" aria-pressed="false"><span class="ai" aria-hidden="true">🔗</span>הדגשת קישורים</button>
+      <button class="a11yopt" data-a11y="font" aria-pressed="false"><span class="ai" aria-hidden="true">Aa</span>גופן קריא</button>
+      <button class="a11yopt" data-a11y="still" aria-pressed="false"><span class="ai" aria-hidden="true">⏸</span>עצירת אנימציות</button>
+      <button class="a11yopt" id="a11ytheme" aria-pressed="false"><span class="ai" aria-hidden="true">☀</span>רקע בהיר</button>
+    </div>
+    <div class="a11yfoot">
+      <a href="/accessibility" target="_blank" rel="noopener">הצהרת נגישות</a>
+      <a href="/terms" target="_blank" rel="noopener">תקנון</a>
+      <button id="a11yreset">איפוס הגדרות</button>
+    </div>
+  </div>
+</div>
 <div id="statsback" role="dialog" aria-modal="true" aria-labelledby="stitle">
   <div class="statscard">
     <h2 id="stitle">נתוני כניסות</h2>
@@ -1050,6 +1135,8 @@ const feedPage = `<!DOCTYPE html>
   var oldestPer = {};   // channel -> smallest loaded id
   var donePer = {};     // channel -> no more history
   var loadingOlder = false;
+  var BOOT_MAX = 200;
+  var heldOlder = []; // older items from the first load, not yet in the DOM
 
   // ----- line icons (quiet, monochrome SVG — no emoji in the chrome) --------
   var ICONS = {
@@ -1179,7 +1266,22 @@ const feedPage = `<!DOCTYPE html>
   }
 
   function nearBottom() { return chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 140; }
-  function scrollBottom(now) { chat.scrollTo({ top: chat.scrollHeight, behavior: now ? 'auto' : 'smooth' }); }
+  // "Pinned" = the reader is at the bottom. While pinned, the view follows
+  // every height change (late images, the browser re-measuring off-screen
+  // bubbles) so "scroll to bottom" really ends at the last message.
+  var pinned = true;
+  function scrollBottom(now) {
+    pinned = true;
+    chat.scrollTo({ top: chat.scrollHeight, behavior: now ? 'auto' : 'smooth' });
+    if (now) requestAnimationFrame(function () { if (pinned) chat.scrollTop = chat.scrollHeight; });
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { if (pinned) chat.scrollTop = chat.scrollHeight; }).observe(msgs);
+  }
+  chat.addEventListener('scroll', function () {
+    // Only a scroll the user made can unpin; programmatic bottom-scrolls keep it.
+    pinned = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 24;
+  }, { passive: true });
 
   // ----- sidebar ------------------------------------------------------------
   function renderSidebar() {
@@ -1702,6 +1804,7 @@ const feedPage = `<!DOCTYPE html>
         for (var i = 0; i < entries.length; i++) {
           var v = entries[i].target;
           if (entries[i].isIntersecting) {
+            if (document.documentElement.classList.contains('a11y-still')) continue;
             v.muted = true; v.volume = 0;
             var p = v.play();
             if (p && p.catch) p.catch(function () {});
@@ -2063,6 +2166,17 @@ const feedPage = `<!DOCTYPE html>
   }
 
   function maybeLoadOlder() {
+    if (heldOlder.length && !loadingOlder) {
+      // Feed from memory first, until something visible in this view arrives.
+      var added = 0, guard = 0;
+      while (heldOlder.length && added === 0 && guard++ < 20) {
+        var batch = heldOlder.splice(Math.max(0, heldOlder.length - 60));
+        batch = batch.filter(function (it) { return !document.getElementById('m' + it.key); });
+        added = batch.filter(function (it) { return current === 'all' || it.channel === current; }).length;
+        if (batch.length) prependTop(batch);
+      }
+      return;
+    }
     if (loadingOlder || scopeDone() || visibleCount() === 0) return;
     loadingOlder = true;
     document.getElementById('topload').style.display = 'block';
@@ -2204,6 +2318,15 @@ const feedPage = `<!DOCTYPE html>
     if (data.seq > lastSeq) lastSeq = data.seq;
     var items = (data.items || []).slice();
     items.sort(function (a, b) { return (a.ts - b.ts) || (a.id - b.id); }); // oldest first
+    // Phones choke on 800 bubbles at once. Draw the newest BOOT_MAX now; the
+    // older ones wait in memory and come in as you scroll up (no server call).
+    if (items.length > BOOT_MAX) {
+      heldOlder = items.slice(0, items.length - BOOT_MAX);
+      items = items.slice(items.length - BOOT_MAX);
+      heldOlder.forEach(function (it) {
+        itemMeta[it.key] = { key: it.key, id: it.id, channel: it.channel, ts: it.ts, preview: it.preview || '', text: it.text || '' };
+      });
+    }
     // One fragment, one layout: 800 bubbles appended individually made the
     // boot visibly stutter on phones.
     clearSkeleton();
@@ -2377,6 +2500,7 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('searchclose').onclick = closeSearch;
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
+      if (document.getElementById('a11yback').classList.contains('open')) { closeA11y(); return; }
       if (document.getElementById('statsback').classList.contains('open')) { closeStats(); return; }
       if (document.getElementById('reactpick').classList.contains('open')) { closeReactPick(); return; }
       if (document.getElementById('msgsheet').classList.contains('open')) { closeSheet(); return; }
@@ -2899,6 +3023,62 @@ const feedPage = `<!DOCTYPE html>
   document.getElementById('chanlist').addEventListener('touchend', function () { if (rowLp) { clearTimeout(rowLp); rowLp = null; } }, { passive: true });
   document.getElementById('chanlist').addEventListener('touchmove', function () { if (rowLp) { clearTimeout(rowLp); rowLp = null; } }, { passive: true });
 
+  // ----- accessibility menu (IS 5568) ----------------------------------------
+  var A11Y_Z = [1, 1.15, 1.3, 1.5];
+  var a11y = {};
+  try { a11y = JSON.parse(localStorage.getItem('tgpopup-a11y') || '{}') || {}; } catch (e) { a11y = {}; }
+  function saveA11y() { try { localStorage.setItem('tgpopup-a11y', JSON.stringify(a11y)); } catch (e) {} }
+  function applyA11y() {
+    var H = document.documentElement;
+    ['contrast', 'gray', 'links', 'font', 'still'].forEach(function (k) {
+      H.classList.toggle('a11y-' + k, !!a11y[k]);
+      var b = document.querySelector('.a11yopt[data-a11y="' + k + '"]');
+      if (b) b.setAttribute('aria-pressed', a11y[k] ? 'true' : 'false');
+    });
+    var z = a11y.z || 1;
+    H.style.setProperty('--z', z);
+    document.getElementById('a11yzlabel').textContent = 'גודל תצוגה: ' + Math.round(z * 100) + '%';
+    document.getElementById('a11ytheme').setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+    if (a11y.still) document.querySelectorAll('video').forEach(function (v) { try { v.pause(); } catch (e) {} });
+  }
+  function stepZoom(dir) {
+    var i = A11Y_Z.indexOf(a11y.z || 1); if (i < 0) i = 0;
+    i = Math.max(0, Math.min(A11Y_Z.length - 1, i + dir));
+    a11y.z = A11Y_Z[i]; saveA11y(); applyA11y();
+    if (pinned) scrollBottom(true);
+  }
+  var a11yReturnFocus = null;
+  function openA11y() {
+    a11yReturnFocus = document.activeElement;
+    applyA11y();
+    document.getElementById('a11yback').classList.add('open');
+    setTimeout(function () { document.getElementById('a11yplus').focus(); }, 30);
+  }
+  function closeA11y() {
+    document.getElementById('a11yback').classList.remove('open');
+    if (a11yReturnFocus && a11yReturnFocus.focus) a11yReturnFocus.focus();
+  }
+  document.getElementById('a11ybtn').onclick = openA11y;
+  document.getElementById('a11yclose').onclick = closeA11y;
+  document.getElementById('a11yback').onclick = function (ev) { if (ev.target.id === 'a11yback') closeA11y(); };
+  document.getElementById('a11yplus').onclick = function () { stepZoom(1); };
+  document.getElementById('a11yminus').onclick = function () { stepZoom(-1); };
+  document.querySelectorAll('.a11yopt[data-a11y]').forEach(function (b) {
+    b.onclick = function () { var k = b.getAttribute('data-a11y'); a11y[k] = !a11y[k]; saveA11y(); applyA11y(); };
+  });
+  document.getElementById('a11ytheme').onclick = function () { document.getElementById('themebtn').click(); applyA11y(); };
+  document.getElementById('a11yreset').onclick = function () { a11y = {}; saveA11y(); applyA11y(); toast('הגדרות הנגישות אופסו'); };
+  // Keep keyboard focus inside the open dialog (Tab wraps around).
+  document.getElementById('a11yback').addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Tab') return;
+    var f = Array.from(document.querySelectorAll('#a11yback button, #a11yback a'));
+    if (!f.length) return;
+    var first = f[0], last = f[f.length - 1];
+    if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+  });
+  applyA11y();
+
   // ----- stats panel --------------------------------------------------------
   var statsTimer = null;
   function renderStats(d) {
@@ -3035,6 +3215,9 @@ const feedPage = `<!DOCTYPE html>
     }
     item('📋', 'מה פספסתי / מה היה היום', function () { openDigest(); });
     if (isAdmin) item('📊', 'נתוני כניסות', function () { openStats(); });
+    item('♿', 'נגישות', function () { openA11y(); });
+    item('📄', 'תקנון ופרטיות', function () { window.open('/terms', '_blank', 'noopener'); });
+    item('📄', 'הצהרת נגישות', function () { window.open('/accessibility', '_blank', 'noopener'); });
     item('🔠', 'גודל טקסט', cycleTxt);
     item('⚗️', 'סינון לפי סוג', function () { document.getElementById('filterbtn').click(); });
     item(theme === 'light' ? '🌙' : '🌓', 'מצב בהיר / כהה', function () { document.getElementById('themebtn').click(); });

@@ -349,6 +349,8 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/refresh", f.handleRefresh)
 	mux.HandleFunc("/api/reactions", f.handleReactions)
 	mux.HandleFunc("/api/stats", f.handleStats)
+	mux.HandleFunc("/terms", f.handleTerms)
+	mux.HandleFunc("/accessibility", f.handleAccessibility)
 	mux.HandleFunc("/api/video", f.handleVideo)
 	mux.HandleFunc("/api/media", f.handleMedia)
 	mux.HandleFunc("/api/search", lean(f.handleSearch))
@@ -1433,7 +1435,7 @@ func feedMediaHTML(m Message) string {
 		b.WriteString(`<div class="stickerbox"><img src="` + html.EscapeString(m.Sticker) + `" alt="" loading="lazy"></div>`)
 
 	case m.Photo != "":
-		b.WriteString(`<div class="photo"><img src="` + html.EscapeString(m.Photo) + `" alt="" loading="lazy" decoding="async"` + arStyle(m.AspectPct) + `></div>`)
+		b.WriteString(`<div class="photo"><img src="` + html.EscapeString(m.Photo) + `" alt="תמונה מצורפת להודעה" loading="lazy" decoding="async"` + arStyle(m.AspectPct) + `></div>`)
 	}
 
 	if m.Voice != "" {

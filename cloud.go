@@ -118,7 +118,7 @@ func adminToken(key string) string { return sessionToken(key + "|admin") }
 // carry feed data, so they sit outside the key.
 func publicAsset(path string) bool {
 	switch path {
-	case "/manifest.webmanifest", "/sw.js", "/offline", "/favicon.ico", "/icon-192.png", "/icon-512.png", "/icon-maskable.png", "/apple-touch-icon.png":
+	case "/manifest.webmanifest", "/sw.js", "/offline", "/terms", "/accessibility", "/favicon.ico", "/icon-192.png", "/icon-512.png", "/icon-maskable.png", "/apple-touch-icon.png":
 		return true
 	}
 	return false
@@ -274,8 +274,10 @@ const loginPage = `<!doctype html>
   <div class="logo">📡</div>
   <h1>מבזקי ארץ ישראל</h1>
   <p>הזן את מפתח הגישה כדי להיכנס</p>
+  <label for="k" style="position:absolute;right:-9999px">מפתח גישה</label>
   <input id="k" name="k" type="password" placeholder="מפתח גישה" autofocus required>
   <button type="submit">כניסה</button>
-  <div class="err" id="e">%%ERR%%</div>
+  <div class="err" id="e" role="alert">%%ERR%%</div>
+  <div style="margin-top:18px;font-size:12.5px"><a href="/terms" style="color:#8b93a9">תקנון ופרטיות</a> · <a href="/accessibility" style="color:#8b93a9">הצהרת נגישות</a></div>
 </form>
 </body></html>`
