@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -91,8 +92,9 @@ func TestAdminUnlockViaHandlePage(t *testing.T) {
 func TestAdminClaimFlow(t *testing.T) {
 	dir := t.TempDir()
 	f := NewFeed()
-	f.BindAddr = "0.0.0.0" // cloud
-	f.AdminKey = ""        // no env key -> claim mode
+	f.BindAddr = "0.0.0.0"   // cloud
+	f.AdminKey = ""          // no env key -> claim mode
+	f.AccessKey = "site-key" // claim only exists behind the site's access key
 	f.admin = newAdminStore(dir + "/admin.json")
 	f.stats = newStatsStore("")
 
@@ -159,5 +161,50 @@ func TestAdminClaimFlow(t *testing.T) {
 		if c.Name == "tgpopup_admin" {
 			t.Fatal("wrong token must not unlock")
 		}
+	}
+}
+
+// Open site (no TGPOPUP_KEY): no self-claim, reactions are owner-only, and
+// TGPOPUP_ADMIN_KEY still unlocks both.
+func TestOpenCloudMode(t *testing.T) {
+	dir := t.TempDir()
+	f := NewFeed()
+	f.BindAddr = "0.0.0.0"
+	f.AccessKey = ""
+	f.admin = newAdminStore(dir + "/admin.json")
+	f.reacts = newReactStore(dir + "/reactions.json")
+
+	rec := httptest.NewRecorder()
+	f.handleAdminUnlock(rec, httptest.NewRequest("GET", "/?admin=claim", nil))
+	if len(rec.Result().Cookies()) != 0 || f.admin.token() != "" {
+		t.Fatal("self-claim must be off on an open site")
+	}
+	post := func(ck *http.Cookie) int {
+		req := httptest.NewRequest("POST", "/api/reactions", strings.NewReader(`{"key":"a/1","emoji":"👍"}`))
+		if ck != nil {
+			req.AddCookie(ck)
+		}
+		rec := httptest.NewRecorder()
+		f.handleReactions(rec, req)
+		return rec.Code
+	}
+	if c := post(nil); c != 403 {
+		t.Fatalf("visitor reaction should be forbidden, got %d", c)
+	}
+
+	f.AdminKey = "owner-secret"
+	rec = httptest.NewRecorder()
+	f.handleAdminUnlock(rec, httptest.NewRequest("GET", "/?admin=owner-secret", nil))
+	var ck *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "tgpopup_admin" {
+			ck = c
+		}
+	}
+	if ck == nil {
+		t.Fatal("admin key should unlock")
+	}
+	if c := post(ck); c != 200 {
+		t.Fatalf("owner reaction should work, got %d", c)
 	}
 }

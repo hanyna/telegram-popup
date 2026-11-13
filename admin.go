@@ -81,7 +81,7 @@ func (f *Feed) handleAdminUnlock(w http.ResponseWriter, r *http.Request) bool {
 		if q == f.AdminKey {
 			setCookie(adminToken(f.AdminKey))
 		}
-	case f.admin != nil:
+	case f.admin != nil && !f.openCloud():
 		if q == "claim" {
 			setCookie(f.admin.claim()) // first claim wins; later claims return the same token
 		} else if tok := f.admin.token(); tok != "" && q == tok {

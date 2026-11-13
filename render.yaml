@@ -8,8 +8,9 @@ services:
     buildCommand: go build -trimpath -ldflags "-s -w" -o app .
     startCommand: ./app
     envVars:
-      - key: TGPOPUP_KEY
-        generateValue: true # Render invents a strong access key — copy it from the Environment tab
+      # Optional: TGPOPUP_KEY locks the site behind an access code (leave it
+      # out for an open site). TGPOPUP_ADMIN_KEY unlocks the stats panel and
+      # reactions for the owner: open /?admin=<value> once.
       - key: TGPOPUP_CHANNELS
         value: "elisha_yered,hakolhayehudi,realelchangr,ayeletlash,SamariaUpdates,nilchamim,hatzhalhyosh"
       - key: TZ

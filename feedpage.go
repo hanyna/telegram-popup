@@ -1687,12 +1687,13 @@ const feedPage = `<!DOCTYPE html>
     }
     return r;
   }
+  var canReact = true; // false online without a key, for everyone but the admin
   function renderMyReact(node, key) {
     var existing = node.querySelector('.react.mine');
     if (existing) existing.remove();
     // The hover "+" sits in the bubble corner, absolutely positioned, so it no
     // longer adds an empty strip under every message.
-    if (!node.querySelector('.addreact')) {
+    if (canReact && !node.querySelector('.addreact')) {
       var add = document.createElement('span');
       add.className = 'addreact'; add.title = 'הוסף תגובה';
       add.setAttribute('role', 'button'); add.setAttribute('tabindex', '0'); add.setAttribute('aria-label', 'הוסף תגובה');
@@ -1707,7 +1708,7 @@ const feedPage = `<!DOCTYPE html>
       var chip = document.createElement('span');
       chip.className = 'react mine'; chip.title = 'התגובה שלך — לחיצה מסירה';
       chip.innerHTML = '<span class="re">' + emoji + '</span>';
-      chip.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, null); };
+      if (canReact) chip.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, null); };
       row.insertBefore(chip, row.firstChild);
     } else {
       var r = node.querySelector('.reacts');
@@ -2809,6 +2810,7 @@ const feedPage = `<!DOCTYPE html>
     setSound = d.sound !== false;
     if (d.theme === 'light' || d.theme === 'dark') { theme = d.theme; applyTheme(); }
     isAdmin = !!d.admin;
+    if (d.canReact === false && canReact) { canReact = false; document.querySelectorAll('.addreact').forEach(function (b) { b.remove(); }); }
     paintToggles();
     applyCaps(!!d.cloud);
   }).catch(function () {});
@@ -2946,7 +2948,7 @@ const feedPage = `<!DOCTYPE html>
     }
     var text = (meta.text || meta.preview || (node.querySelector('.msgtext') || {}).textContent || '').trim();
     var link = 'https://t.me/' + (meta.channel || '') + '/' + (meta.id || '');
-    it('😊', (myReacts[key] ? 'שנה / הסר תגובה' : 'הוסף תגובה שלך'), function () { openReactPick(node, key, node); });
+    if (canReact) it('😊', (myReacts[key] ? 'שנה / הסר תגובה' : 'הוסף תגובה שלך'), function () { openReactPick(node, key, node); });
     it('📋', 'העתק טקסט', function () { copyText(text, 'הטקסט הועתק'); });
     it('🔗', 'העתק קישור לפוסט', function () { copyText(link, 'הקישור הועתק'); });
     if (navigator.share) it('📤', 'שתף…', function () { navigator.share({ title: (ch && ch.title) || '', text: text, url: link }).catch(function () {}); });

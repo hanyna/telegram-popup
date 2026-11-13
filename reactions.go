@@ -64,6 +64,10 @@ func (f *Feed) handleReactions(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		_ = json.NewEncoder(w).Encode(map[string]any{"reactions": f.reacts.all()})
 	case http.MethodPost:
+		if !f.canReact(r) {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 		var body struct {
 			Key   string `json:"key"`
 			Emoji string `json:"emoji"`

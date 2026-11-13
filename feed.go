@@ -113,6 +113,15 @@ type Feed struct {
 // isAdmin reports whether this request may see admin-only data (stats).
 // The desktop/local user always qualifies; in the cloud an admin cookie
 // matching AdminKey is required.
+// openCloud: online with no access key — anyone can read the page. In that
+// mode only the admin may change the shared reactions, and admin can only be
+// unlocked with TGPOPUP_ADMIN_KEY (a self-claim would let any visitor grab it
+// after a redeploy wipes admin.json).
+func (f *Feed) openCloud() bool { return f.BindAddr != "" && f.AccessKey == "" }
+
+// canReact: may this visitor change the shared reactions?
+func (f *Feed) canReact(r *http.Request) bool { return !f.openCloud() || f.isAdmin(r) }
+
 func (f *Feed) isAdmin(r *http.Request) bool {
 	if f.BindAddr == "" {
 		return true // local machine = owner
@@ -1217,6 +1226,7 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"version":   version,
 			"autostart": f.SetAutostart != nil && f.BindAddr == "",
 			"admin":     f.isAdmin(r),
+			"canReact":  f.canReact(r),
 		})
 
 	case http.MethodPost:
