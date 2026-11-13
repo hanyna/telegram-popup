@@ -2808,7 +2808,7 @@ const feedPage = `<!DOCTYPE html>
   fetch('/api/settings').then(function (r) { return r.json(); }).then(function (d) {
     setPopups = d.popups !== false;
     setSound = d.sound !== false;
-    if (d.theme === 'light' || d.theme === 'dark') { theme = d.theme; applyTheme(); }
+    if (!d.cloud && (d.theme === 'light' || d.theme === 'dark')) { theme = d.theme; applyTheme(); }
     isAdmin = !!d.admin;
     if (d.canReact === false && canReact) { canReact = false; document.querySelectorAll('.addreact').forEach(function (b) { b.remove(); }); }
     paintToggles();

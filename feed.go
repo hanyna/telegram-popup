@@ -1213,7 +1213,9 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if f.GetSettings != nil {
 			popups, sound = f.GetSettings()
 		}
-		theme := "dark"
+		// No server-side theme online: each device keeps its own choice
+		// (sending "dark" here used to wipe the visitor's light mode on reload).
+		theme := ""
 		if f.GetTheme != nil {
 			theme = f.GetTheme()
 		}
