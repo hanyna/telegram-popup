@@ -2154,7 +2154,41 @@ const feedPage = `<!DOCTYPE html>
     if (!readScrollTimer) readScrollTimer = setTimeout(function () { readScrollTimer = null; markReadVisible(); }, 350);
   }, { passive: true });
 
+  // ----- keep my place across a browser "tab discard" ----------------------
+  // Chrome (Memory Saver) and phones throw away background tabs and reload
+  // them on return. We can't stop that from the page, but we can make it
+  // invisible: remember channel + the message at the top of the screen in
+  // sessionStorage (it survives the discard), and put the reader back there.
+  function savePlace() {
+    try {
+      var top = chat.getBoundingClientRect().top, anchor = '', off = 0;
+      var nodes = msgs.querySelectorAll('.msg');
+      for (var i = 0; i < nodes.length; i++) {
+        var r = nodes[i].getBoundingClientRect();
+        if (r.bottom > top + 4) { anchor = nodes[i].id; off = r.top - top; break; }
+      }
+      sessionStorage.setItem('tgpopup-place', JSON.stringify({ at: Date.now(), ch: current, bottom: nearBottom(), anchor: anchor, off: off }));
+    } catch (e) {}
+  }
+  function readPlace() {
+    try {
+      var p = JSON.parse(sessionStorage.getItem('tgpopup-place') || 'null');
+      if (p && Date.now() - p.at < 12 * 3600 * 1000) return p;
+    } catch (e) {}
+    return null;
+  }
+  function restorePlace(p) {
+    if (!p || p.bottom || !p.anchor) return false;
+    var n = document.getElementById(p.anchor);
+    if (!n) return false;
+    pinned = false;
+    chat.scrollTop += n.getBoundingClientRect().top - chat.getBoundingClientRect().top - (p.off || 0);
+    return true;
+  }
+  window.addEventListener('pagehide', savePlace);
+
   document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { savePlace(); return; }
     if (!document.hidden) {
       titleUnread = 0;
       document.title = baseTitle;
@@ -2298,12 +2332,15 @@ const feedPage = `<!DOCTYPE html>
     var cachedCh = JSON.parse(localStorage.getItem('tgpopup-channels') || 'null');
     if (cachedCh && cachedCh.length) { channels = cachedCh; renderSidebar(); }
   } catch (e) {}
+  var place = readPlace(); // set when this tab was discarded / reloaded
   var painted = paintSnapshot();
   if (painted) {
     var want0 = 'all';
     try { want0 = localStorage.getItem('tgpopup-channel') || 'all'; } catch (e) {}
+    if (place && place.ch) want0 = place.ch;
     if (want0 !== 'all' && !chanByName(want0)) want0 = 'all';
     select(want0);
+    restorePlace(place);
   }
   fetch('/api/channels').then(function (r) { return r.json(); }).then(function (d) {
     channels = d.channels || [];
@@ -2360,13 +2397,21 @@ const feedPage = `<!DOCTYPE html>
       // refresh the sidebar and follow the bottom if they were there.
       var nb0 = nearBottom();
       renderSidebar(); renderHead();
-      if (nb0) scrollBottom(true);
+      if (place && restorePlace(place)) {
+        // Fresh messages and images just changed heights: settle once more.
+        var pl = place, y0 = chat.scrollTop;
+        setTimeout(function () { if (Math.abs(chat.scrollTop - y0) < 4) restorePlace(pl); }, 700);
+      } else if (nb0) scrollBottom(true);
+      place = null;
       setTimeout(markReadVisible, 300);
     } else {
       var want = 'all';
       try { want = localStorage.getItem('tgpopup-channel') || 'all'; } catch (e) {}
+      if (place && place.ch) want = place.ch;
       if (want !== 'all' && !chanByName(want)) want = 'all';
       select(want); // lands on the "הודעות חדשות" line when there is one
+      restorePlace(place);
+      place = null;
     }
     saveSnapshot();
     loadReactsFromServer(); // pull personal reactions saved in the app
