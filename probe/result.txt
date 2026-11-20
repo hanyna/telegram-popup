@@ -1,10 +1,7 @@
-time 09:55:15 UTC
-hakolhayehudi    429 { "success": false, "errors": [ "FLOOD_WAIT_24920" ] }
-SamariaUpdates   200 messages=100 chats=[('SamariaUpdates', -1003590244031), (None, -1003365611197)]
-nilchamim        429 { "success": false, "errors": [ "FLOOD_WAIT_24901" ] }
-hatzhalhyosh     200 messages=100 chats=[('hatzhalhyosh', -1001466767797)]
-elisha_yered     200 messages=100 chats=[('elisha_yered', -1001764803881), (None, -1002006461606), ('realelchangr', -1002055729894), ('b3976a', -1001906697861), ('b3976a', -1001906697861), (None, -2071906697861)]
-realelchangr     200 messages=100 chats=[('realelchangr', -1002055729894), ('b3976a', -1001906697861), ('hatzhalhyosh', -1001466767797), ('elisha_yered', -1001764803881), ('b3976a', -1001906697861), (None, -2071906697861)]
-ayeletlash       429 { "success": false, "errors": [ "FLOOD_WAIT_9" ] }
-
-numeric id of hakolhayehudi from forwards: None
+time 16:53:12 UTC
+hakolhayehudi json 200 
+hakolhayehudi too-big posts: [7299, 7296, 7293, 7292, 7273, 7260]
+   media 7299 status 206 got 4194304 bytes in 7.4s bytes 0-4194303/19441137 b'ftypmp42'
+   media 7296 status 206 got 4194304 bytes in 5.1s bytes 0-4194303/18407348 b'ftypmp42'
+nilchamim json 200 
+nilchamim too-big posts: []
