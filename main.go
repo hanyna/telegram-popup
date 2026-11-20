@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "8.2.2"
+const version = "8.3"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -387,6 +387,19 @@ func main() {
 					logLine("הורדת סרטון ארוך @%s/%d נכשלה: %v", channel, id, err)
 				}
 				return path, err
+			}
+		}
+		// Long videos ("Media is too big") without an account: a public
+		// Telegram bridge, cached on our own disk. TGPOPUP_BRIDGE=off turns
+		// it off; any other value replaces the bridge address.
+		{
+			bigDir, bigMax := filepath.Join(dir, "bigvideo"), int64(1500<<20)
+			if cloudBind != "" {
+				bigDir, bigMax = filepath.Join(os.TempDir(), "tgpopup-bigvideo"), int64(700<<20)
+			}
+			feed.bridge = newBridgeStore(os.Getenv("TGPOPUP_BRIDGE"), bigDir, bigMax, logLine)
+			if feed.bridge != nil {
+				logLine("סרטונים ארוכים: פעיל (דרך %s)", feed.bridge.base)
 			}
 		}
 		feed.IsMuted = muted.has

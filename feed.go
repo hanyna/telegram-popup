@@ -83,7 +83,10 @@ type Feed struct {
 	ResolveVideo  func(channel string, id int) (string, error)
 	// BigVideo downloads a large video via an authenticated Telegram account
 	// and returns a local file path. nil when the account feature is off.
-	BigVideo     func(channel string, id int) (string, error)
+	BigVideo func(channel string, id int) (string, error)
+	// bridge plays "Media is too big" videos without any account, through a
+	// public Telegram bridge (see bridge.go). nil = off.
+	bridge       *bridgeStore
 	HasTGAccount func() bool
 	Search       func(query, channel string, limit int) []Message
 	ArchiveCount func() int
@@ -362,6 +365,7 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/accessibility", f.handleAccessibility)
 	mux.HandleFunc("/api/video", f.handleVideo)
 	mux.HandleFunc("/api/media", f.handleMedia)
+	mux.HandleFunc("/api/bigvideo", f.handleBigVideo)
 	mux.HandleFunc("/api/search", lean(f.handleSearch))
 	mux.HandleFunc("/api/autostart", f.handleAutostart)
 	mux.HandleFunc("/api/status", lean(f.handleStatus))
@@ -606,8 +610,9 @@ func (f *Feed) handleVideo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, ErrMediaTooBig) {
-			// Final: never retry, tell the page to relabel the item.
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error(), "toobig": true})
+			// Final: never retry, tell the page to relabel the item. With
+			// the bridge on, the page then plays it through /api/bigvideo.
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error(), "toobig": true, "bridge": f.bridge != nil})
 			return
 		}
 		f.registerPending(channel, id)
@@ -1009,6 +1014,14 @@ func (f *Feed) handleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if f.bridge.active(channel, id) && f.followed(channel) {
+		// A long video the page already asked for: our own copy, no
+		// Telegram round trip.
+		if ok, _ := f.bridge.serve(w, r, channel, id); ok {
+			return
+		}
+	}
+
 	src, err := f.resolveCached(channel, id)
 	if err == nil && !allowedMediaHost(src) {
 		// The URL came out of a Telegram page, but it does not point at
@@ -1032,6 +1045,13 @@ func (f *Feed) handleMedia(w http.ResponseWriter, r *http.Request) {
 				serveLocalFile(w, r, path)
 				return
 			}
+		}
+		if f.bridge != nil && errors.Is(err, ErrMediaTooBig) && f.followed(channel) {
+			if ok, _ := f.bridge.serve(w, r, channel, id); ok {
+				return
+			}
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
 		}
 		f.registerPending(channel, id)
 		http.Error(w, "unavailable", http.StatusNotFound)
@@ -1229,6 +1249,7 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"autostart": f.SetAutostart != nil && f.BindAddr == "",
 			"admin":     f.isAdmin(r),
 			"canReact":  f.canReact(r),
+			"bigvideo":  f.bridge != nil,
 		})
 
 	case http.MethodPost:
@@ -1433,7 +1454,7 @@ func feedMediaHTML(m Message) string {
 	case m.VideoThumb != "" && m.TooBig:
 		// No play button: there is nothing to play outside Telegram. The
 		// frame links to the post so the user can open it there if they can.
-		b.WriteString(`<div class="photo"><a class="vidwrap toobig" href="` + html.EscapeString(m.URL) + `" target="_blank" rel="noopener noreferrer">` +
+		b.WriteString(`<div class="photo"><a class="vidwrap toobig" data-embed="` + html.EscapeString(m.Channel) + "/" + strconv.Itoa(m.ID) + `" href="` + html.EscapeString(m.URL) + `" target="_blank" rel="noopener noreferrer">` +
 			`<img src="` + html.EscapeString(m.VideoThumb) + `" alt="">` +
 			`<div class="toobiglabel"><b>סרטון ארוך</b><span>זמין לצפייה רק בתוך טלגרם</span></div>` + badge + `</a></div>`)
 

@@ -575,6 +575,16 @@ const feedPage = `<!DOCTYPE html>
   .toobiglabel b { font-size:15px; }
   .toobiglabel span { font-size:12px; opacity:0.9; }
   .toobiglabel::before { content:'🔒'; font-size:26px; margin-bottom:4px; }
+  /* Long video that CAN be played here (through the bridge): a normal
+     preview with a play button and a small "long video" chip. */
+  .toobig.canplay { cursor:pointer; }
+  .toobig.canplay img { filter:none; }
+  .toobig.canplay .toobiglabel { inset:8px 8px auto auto; display:block; padding:3px 9px; border-radius:10px;
+    background:rgba(0,0,0,0.62); text-shadow:none; }
+  .toobig.canplay .toobiglabel::before, .toobig.canplay .toobiglabel span { display:none; }
+  .toobig.canplay .toobiglabel b { font-size:12px; font-weight:600; }
+  .bigwait { position:absolute; inset:auto 0 0 0; padding:7px 10px; font-size:12.5px; text-align:center; color:#fff;
+    background:rgba(0,0,0,0.66); }
   .vidready { box-shadow:0 0 0 2px rgba(74,168,138,0.7), 0 0 22px rgba(74,168,138,0.35); }
   .vidready .playbtn { background:rgba(20,120,80,0.8); border-color:#fff; }
 
@@ -1765,6 +1775,7 @@ const feedPage = `<!DOCTYPE html>
     noteItem(it);
     if (current !== 'all' && it.channel !== current) node.classList.add('hidden');
     applyMyReacts(node, it.key);
+    upgradeTooBig(node);
     // Images fade in as they load instead of popping.
     var imgs = node.querySelectorAll('.photo img');
     for (var i = 0; i < imgs.length; i++) {
@@ -1973,10 +1984,93 @@ const feedPage = `<!DOCTYPE html>
       var sp = document.createElement('span'); sp.textContent = 'זמין לצפייה רק בתוך טלגרם';
       l.appendChild(b); l.appendChild(sp); wrap.appendChild(l);
     }
-    var art = wrap.closest('.msg');
-    var link = art ? art.querySelector('a.msgtime, .msghead a') : null;
+    if (bigEnabled) { upgradeTooBig(wrap.parentNode); return; }
     if (msg) toast(msg);
   }
+
+  // ----- long videos through the bridge --------------------------------------
+  // Telegram's public page refuses videos above ~20 MB ("Media is too big").
+  // When the server has the bridge on (settings.bigvideo), those previews get
+  // a play button: the server fetches the file once, keeps its own copy, and
+  // streams it here. Works on old cached bubbles too (channel/id come from
+  // the link when data-embed is missing).
+  var bigEnabled = false;
+  function upgradeTooBig(root) {
+    if (!bigEnabled || !root || !root.querySelectorAll) return;
+    var list = root.querySelectorAll('.toobig:not(.canplay)');
+    for (var i = 0; i < list.length; i++) {
+      var w = list[i];
+      w.classList.add('canplay');
+      w.setAttribute('role', 'button');
+      w.setAttribute('aria-label', 'נגן סרטון ארוך');
+      if (!w.querySelector('.playbtn')) {
+        var pb = document.createElement('div'); pb.className = 'playbtn'; pb.innerHTML = '<span></span>';
+        w.appendChild(pb);
+      }
+    }
+  }
+  function bigPost(wrap) {
+    var post = wrap.getAttribute('data-embed') || '';
+    if (!/^[A-Za-z0-9_]+\/\d+$/.test(post)) {
+      var m = /t\.me\/(?:s\/)?([A-Za-z0-9_]+)\/(\d+)/.exec(wrap.getAttribute('href') || '');
+      post = m ? m[1] + '/' + m[2] : '';
+    }
+    return post;
+  }
+  function playBig(wrap) {
+    if (wrap.getAttribute('data-loading')) return;
+    var post = bigPost(wrap);
+    if (!post) { toast('הסרטון הזה זמין לצפייה רק בתוך טלגרם'); return; }
+    var parts = post.split('/');
+    var q = 'channel=' + encodeURIComponent(parts[0]) + '&id=' + parts[1];
+    var img = wrap.querySelector('img');
+    var poster = img ? img.src : '';
+    var pb = wrap.querySelector('.playbtn');
+    wrap.setAttribute('data-loading', '1');
+    if (pb) pb.innerHTML = '<span class="spin" style="margin:0"></span>';
+    var note = document.createElement('div'); note.className = 'bigwait'; note.textContent = 'מכין את הסרטון הארוך…';
+    wrap.appendChild(note);
+    function reset(msg) {
+      wrap.removeAttribute('data-loading');
+      if (pb) pb.innerHTML = '<span></span>';
+      if (note.parentNode) note.remove();
+      if (msg) toast(msg);
+    }
+    fetch('/api/bigvideo?' + q, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { reset(d.error || 'הסרטון לא זמין כרגע — נסה שוב מאוחר יותר'); return; }
+        // The preview may be a link (<a>): a player inside a link would
+        // navigate on every tap, so swap in a plain box.
+        var box = document.createElement('div'); box.className = 'vidwrap';
+        var v = document.createElement('video');
+        v.src = d.src || ('/api/media?' + q);
+        if (poster) v.poster = poster;
+        v.controls = true; v.autoplay = true; v.setAttribute('playsinline', '');
+        v.onerror = function () {
+          if (box.parentNode) box.parentNode.replaceChild(wrap, box);
+          reset('הסרטון לא זמין לצפייה כרגע — נסה שוב מאוחר יותר');
+        };
+        box.appendChild(v);
+        wrap.parentNode.replaceChild(box, wrap);
+        var p = v.play(); if (p && p.catch) p.catch(function () {});
+      })
+      .catch(function () { reset('שגיאת תקשורת'); });
+  }
+  chat.addEventListener('click', function (ev) {
+    var w = ev.target.closest ? ev.target.closest('.toobig.canplay') : null;
+    if (!w) return;
+    if (ev.ctrlKey || ev.metaKey || ev.shiftKey) return; // open the post in Telegram instead
+    ev.preventDefault();
+    playBig(w);
+  });
+  chat.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    var w = ev.target.closest ? ev.target.closest('.toobig.canplay') : null;
+    if (!w) return;
+    ev.preventDefault();
+    playBig(w);
+  });
 
   // Long videos: clicking the preview asks OUR server for the direct video
   // file and plays it in the page's own player. Fallback chain, all
@@ -2028,8 +2122,10 @@ const feedPage = `<!DOCTYPE html>
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.toobig) {
-          // Telegram's final answer: relabel the frame, no retries.
+          // Telegram's final answer: relabel the frame, no retries. With
+          // the bridge on it becomes a playable long video — start it.
           markTooBig(wrap, d.error);
+          if (bigEnabled && wrap.classList.contains('canplay')) playBig(wrap);
           return;
         }
         if (d.ok && d.big) {
@@ -2855,6 +2951,7 @@ const feedPage = `<!DOCTYPE html>
     setSound = d.sound !== false;
     if (!d.cloud && (d.theme === 'light' || d.theme === 'dark')) { theme = d.theme; applyTheme(); }
     isAdmin = !!d.admin;
+    if (d.bigvideo && !bigEnabled) { bigEnabled = true; upgradeTooBig(msgs); }
     if (d.canReact === false && canReact) { canReact = false; document.querySelectorAll('.addreact').forEach(function (b) { b.remove(); }); }
     paintToggles();
     applyCaps(!!d.cloud);
