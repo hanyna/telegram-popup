@@ -1,0 +1,26 @@
+messages: 78 too-big: ['realelchangr_7305', 'realelchangr_7300', 'elisha_yered_9715', 'ayeletlash_6328', 'ayeletlash_6320', 'ayeletlash_6318']
+settings: {"admin":false,"autostart":false,"bigvideo":true,"canReact":false,"cloud":true,"popups":false,"sound":false,"theme":"dark","version":"8.3"}
+
+
+ realelchangr_7305 bigvideo -> 200 {"ok":true,"size":18727110,"src":"/api/media?channel=realelchangr\u0026id=7305"}
+ 3.0s
+   first MB: 206 1000000 bytes in 0.7s bytes 0-999999/18727110 b'ftypmp42'
+   whole file: 200 18727110 bytes in 0.7s moov early: False
+   cached range: 206 100000 bytes in 0.00s bytes 5000000-5099999/18727110
+
+ elisha_yered_9715 bigvideo -> 200 {"ok":true,"size":23539291,"src":"/api/media?channel=elisha_yered\u0026id=9715"}
+ 5.4s
+   first MB: 206 1000000 bytes in 0.7s bytes 0-999999/23539291 b'ftypisom'
+   whole file: 200 23539291 bytes in 0.9s moov early: False
+   cached range: 206 100000 bytes in 0.00s bytes 5000000-5099999/23539291
+
+ ayeletlash_6328 bigvideo -> 200 {"ok":true,"size":20550855,"src":"/api/media?channel=ayeletlash\u0026id=6328"}
+ 3.6s
+   first MB: 206 1000000 bytes in 0.7s bytes 0-999999/20550855 b'ftypisom'
+   whole file: 200 20550855 bytes in 0.9s moov early: False
+   cached range: 206 100000 bytes in 0.00s bytes 5000000-5099999/20550855
+
+== app log (long video lines)
+[09:52:36] סרטון ארוך @realelchangr/7305 מוכן: 17.9 MB ב-1 שניות
+[09:52:43] סרטון ארוך @elisha_yered/9715 מוכן: 22.4 MB ב-2 שניות
+[09:52:49] סרטון ארוך @ayeletlash/6328 מוכן: 19.6 MB ב-2 שניות
