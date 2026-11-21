@@ -31,7 +31,7 @@ func TestFeedServesPageAndMessages(t *testing.T) {
 	}
 	page, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if !strings.Contains(string(page), "ערוץ חי") {
+	if !strings.Contains(string(page), "מבזקי ארץ ישראל") {
 		t.Fatal("page missing app title")
 	}
 

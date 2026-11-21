@@ -489,7 +489,10 @@ func (b *bridgeStore) serve(w http.ResponseWriter, r *http.Request, channel stri
 	}
 	defer f.Close()
 	w.Header().Set("Content-Type", "video/mp4")
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	// Nothing of a long video stays in the browser: after a refresh (or
+	// closing the tab) it is gone from the device, and a replay streams
+	// again from the server's copy.
+	w.Header().Set("Cache-Control", "no-store")
 	if done {
 		info, sErr := f.Stat()
 		if sErr != nil {

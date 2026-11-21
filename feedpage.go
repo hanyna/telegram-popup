@@ -430,15 +430,23 @@ const feedPage = `<!DOCTYPE html>
     font-size:12px; line-height:1.5; color:var(--muted); }
   .react .re { font-size:13px; }
   .react .rc { font-variant-numeric:tabular-nums; }
-  /* the viewer's own reaction (saved on this device, never sent anywhere) */
+  /* likes of this site's visitors: clickable; "mine" is highlighted */
+  .react.local { cursor:pointer; color:var(--fg); }
+  .react.local:hover { border-color:var(--accent); }
   .react.mine { background:rgba(74,147,196,0.18); border-color:rgba(74,147,196,0.5); color:var(--fg); cursor:pointer; }
-  .addreact { position:absolute; left:8px; bottom:-9px; z-index:2; background:var(--panel); display:inline-flex; align-items:center; justify-content:center; width:24px; height:22px;
-    border:1px dashed var(--line2); border-radius:99px; color:var(--muted); cursor:pointer; font-size:13px;
-    opacity:0; transition:opacity 0.12s; }
-  .msg:hover .addreact, .addreact:focus-visible { opacity:1; }
-  @media (hover:none) { .addreact { display:none; } } /* touch: use long-press */
-  .addreact:hover { color:var(--accent); border-color:var(--accent); }
-  .addreact svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; }
+  /* The like button lives in the bubble's header, next to the time: always
+     visible, takes no extra height, and cannot be clipped by the bubble
+     (content-visibility clips anything drawn outside it). */
+  .msghead .msgtime { margin-inline-start:auto; }
+  body.single .msghead .msgtime { margin-inline-start:0; }
+  body.single .msghead .addreact { margin-inline-start:auto; }
+  .addreact { flex:none; display:inline-flex; align-items:center; justify-content:center; width:26px; height:22px;
+    margin:-3px 0; border-radius:8px; color:var(--muted); cursor:pointer; opacity:0.6;
+    transition:opacity 0.12s, color 0.12s, background 0.12s; }
+  .addreact.loose { position:absolute; left:6px; bottom:4px; }
+  .msg:hover .addreact { opacity:0.9; }
+  .addreact:hover, .addreact:focus-visible { opacity:1; color:var(--accent); background:var(--bubble2); }
+  .addreact svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   /* emoji picker popover */
   #reactpick { position:fixed; z-index:47; display:none; gap:2px; padding:6px;
     background:var(--panel); border:1px solid var(--line2); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,0.4); }
@@ -1168,6 +1176,7 @@ const feedPage = `<!DOCTYPE html>
     volumeoff: '<path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/>',
     more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    like: '<path d="M7 11v10H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zM7 11l4-8a2.5 2.5 0 0 1 2.5 2.5V9h5a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 17.3 21H7"/>',
     down: '<path d="M6 9l6 6 6-6"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
     share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-4M8.6 13.4l6.8 4"/>',
@@ -1668,20 +1677,22 @@ const feedPage = `<!DOCTYPE html>
     return true;
   }
 
-  // ----- my reactions (local, per device) ------------------------------------
-  // The viewer taps an emoji on a message; it is saved in this browser only.
-  // Telegram has no idea — there is no account to send a reaction with.
+  // ----- likes / reactions of the site's visitors ---------------------------
+  // Tap an emoji on a message. Every device has one reaction per message; the
+  // server keeps them and everybody sees the totals. Telegram has no idea —
+  // there is no account to send a reaction with.
   var REACT_SET = ['👍', '❤️', '🔥', '😮', '😢', '😂', '🙏', '✅'];
-  // Reactions live in "ערוץ חי" itself (server), with a localStorage copy for
-  // instant paint and offline use. The server is the source of truth, so the
-  // same reactions show on every device that logs in with the same key.
-  var myReacts = {};
+  var myReacts = {};     // key -> my emoji (localStorage copy for instant paint)
+  var reactCounts = {};  // key -> { emoji: how many devices }
   try { myReacts = JSON.parse(localStorage.getItem('tgpopup-myreact') || '{}') || {}; } catch (e) {}
   function cacheMyReacts() { try { localStorage.setItem('tgpopup-myreact', JSON.stringify(myReacts)); } catch (e) {} }
+  var reactsLoadedAt = 0;
   function loadReactsFromServer() {
+    reactsLoadedAt = Date.now();
     fetch('/api/reactions', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.reactions) return;
       myReacts = d.reactions;
+      reactCounts = d.counts || {};
       cacheMyReacts();
       // Re-apply to everything already on screen.
       msgs.querySelectorAll('.msg').forEach(function (n) {
@@ -1697,45 +1708,66 @@ const feedPage = `<!DOCTYPE html>
     }
     return r;
   }
-  var canReact = true; // false online without a key, for everyone but the admin
   function renderMyReact(node, key) {
-    var existing = node.querySelector('.react.mine');
-    if (existing) existing.remove();
-    // The hover "+" sits in the bubble corner, absolutely positioned, so it no
-    // longer adds an empty strip under every message.
-    if (canReact && !node.querySelector('.addreact')) {
+    var old = node.querySelectorAll('.react.local');
+    for (var i = 0; i < old.length; i++) old[i].remove();
+    // The like button sits in the header next to the time.
+    if (!node.querySelector('.addreact')) {
       var add = document.createElement('span');
-      add.className = 'addreact'; add.title = 'הוסף תגובה';
-      add.setAttribute('role', 'button'); add.setAttribute('tabindex', '0'); add.setAttribute('aria-label', 'הוסף תגובה');
-      add.innerHTML = svgIcon('plus');
+      add.className = 'addreact'; add.title = 'הוסף לייק / תגובה';
+      add.setAttribute('role', 'button'); add.setAttribute('tabindex', '0'); add.setAttribute('aria-label', 'הוסף לייק או תגובה');
+      add.innerHTML = svgIcon('like');
       add.onclick = function (ev) { ev.stopPropagation(); openReactPick(node, key, add); };
       add.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); openReactPick(node, key, add); } };
-      node.appendChild(add);
+      var head = node.querySelector('.msghead');
+      if (head) head.appendChild(add); else { add.className += ' loose'; node.appendChild(add); }
     }
-    var emoji = myReacts[key];
-    if (emoji) {
-      var row = reactsRow(node);
-      var chip = document.createElement('span');
-      chip.className = 'react mine'; chip.title = 'התגובה שלך — לחיצה מסירה';
-      chip.innerHTML = '<span class="re">' + emoji + '</span>';
-      if (canReact) chip.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, null); };
-      row.insertBefore(chip, row.firstChild);
-    } else {
+    var mine = myReacts[key], counts = reactCounts[key] || {};
+    var shown = [];
+    REACT_SET.forEach(function (em) {
+      var n = counts[em] || 0;
+      if (em === mine && n < 1) n = 1; // my own, not yet confirmed by the server
+      if (n > 0) shown.push([em, n]);
+    });
+    if (!shown.length) {
       var r = node.querySelector('.reacts');
       if (r && !r.children.length) r.remove();
+      return;
     }
+    var row = reactsRow(node), first = row.firstChild;
+    shown.forEach(function (p) {
+      var em = p[0], n = p[1];
+      var chip = document.createElement('span');
+      chip.className = 'react local' + (em === mine ? ' mine' : '');
+      chip.setAttribute('role', 'button'); chip.setAttribute('tabindex', '0');
+      chip.title = em === mine ? 'הלייק שלך — לחיצה מסירה' : 'לחיצה מצרפת את הלייק שלך';
+      chip.setAttribute('aria-label', em + ' ' + n + (em === mine ? ' (כולל שלך)' : ''));
+      chip.innerHTML = '<span class="re">' + em + '</span>' + (n > 1 ? '<span class="rc">' + n + '</span>' : '');
+      chip.onclick = function (ev) { ev.stopPropagation(); setMyReact(key, myReacts[key] === em ? null : em); };
+      chip.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); chip.onclick(ev); } };
+      row.insertBefore(chip, first);
+    });
   }
 
   function applyMyReacts(node, key) { renderMyReact(node, key); }
   function setMyReact(key, emoji) {
     if (!key) return;
-    if (emoji) myReacts[key] = emoji; else delete myReacts[key];
+    // Show it at once; the server's totals replace this guess when they come.
+    var c = reactCounts[key] || (reactCounts[key] = {});
+    var prev = myReacts[key];
+    if (prev && c[prev]) { c[prev]--; if (c[prev] < 1) delete c[prev]; }
+    if (emoji) { myReacts[key] = emoji; c[emoji] = (c[emoji] || 0) + 1; } else delete myReacts[key];
     cacheMyReacts();
-    var node = document.getElementById('m' + key) || document.getElementById('sr_' + key);
-    if (node) renderMyReact(node, key);
-    // Save into the app itself so it follows you to other devices.
+    function paint() {
+      var node = document.getElementById('m' + key) || document.getElementById('sr_' + key);
+      if (node) renderMyReact(node, key);
+    }
+    paint();
     fetch('/api/reactions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: key, emoji: emoji || '' }) }).catch(function () {});
+      body: JSON.stringify({ key: key, emoji: emoji || '' }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok && d.counts) { reactCounts[key] = d.counts; paint(); } })
+      .catch(function () {});
   }
   function openReactPick(node, key, anchorEl) {
     var pick = document.getElementById('reactpick');
@@ -2285,6 +2317,7 @@ const feedPage = `<!DOCTYPE html>
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { savePlace(); return; }
+    if (Date.now() - reactsLoadedAt > 60000) loadReactsFromServer();
     if (!document.hidden) {
       titleUnread = 0;
       document.title = baseTitle;
@@ -2952,7 +2985,6 @@ const feedPage = `<!DOCTYPE html>
     if (!d.cloud && (d.theme === 'light' || d.theme === 'dark')) { theme = d.theme; applyTheme(); }
     isAdmin = !!d.admin;
     if (d.bigvideo && !bigEnabled) { bigEnabled = true; upgradeTooBig(msgs); }
-    if (d.canReact === false && canReact) { canReact = false; document.querySelectorAll('.addreact').forEach(function (b) { b.remove(); }); }
     paintToggles();
     applyCaps(!!d.cloud);
   }).catch(function () {});
@@ -3090,7 +3122,7 @@ const feedPage = `<!DOCTYPE html>
     }
     var text = (meta.text || meta.preview || (node.querySelector('.msgtext') || {}).textContent || '').trim();
     var link = 'https://t.me/' + (meta.channel || '') + '/' + (meta.id || '');
-    if (canReact) it('😊', (myReacts[key] ? 'שנה / הסר תגובה' : 'הוסף תגובה שלך'), function () { openReactPick(node, key, node); });
+    it('😊', (myReacts[key] ? 'שנה / הסר לייק' : 'הוסף לייק / תגובה'), function () { openReactPick(node, key, node); });
     it('📋', 'העתק טקסט', function () { copyText(text, 'הטקסט הועתק'); });
     it('🔗', 'העתק קישור לפוסט', function () { copyText(link, 'הקישור הועתק'); });
     if (navigator.share) it('📤', 'שתף…', function () { navigator.share({ title: (ch && ch.title) || '', text: text, url: link }).catch(function () {}); });

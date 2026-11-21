@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -165,7 +164,7 @@ func TestAdminClaimFlow(t *testing.T) {
 }
 
 // Open site (no TGPOPUP_KEY): no self-claim, reactions are owner-only, and
-// TGPOPUP_ADMIN_KEY still unlocks both.
+// TGPOPUP_ADMIN_KEY still unlocks the owner tools.
 func TestOpenCloudMode(t *testing.T) {
 	dir := t.TempDir()
 	f := NewFeed()
@@ -179,19 +178,6 @@ func TestOpenCloudMode(t *testing.T) {
 	if len(rec.Result().Cookies()) != 0 || f.admin.token() != "" {
 		t.Fatal("self-claim must be off on an open site")
 	}
-	post := func(ck *http.Cookie) int {
-		req := httptest.NewRequest("POST", "/api/reactions", strings.NewReader(`{"key":"a/1","emoji":"👍"}`))
-		if ck != nil {
-			req.AddCookie(ck)
-		}
-		rec := httptest.NewRecorder()
-		f.handleReactions(rec, req)
-		return rec.Code
-	}
-	if c := post(nil); c != 403 {
-		t.Fatalf("visitor reaction should be forbidden, got %d", c)
-	}
-
 	f.AdminKey = "owner-secret"
 	rec = httptest.NewRecorder()
 	f.handleAdminUnlock(rec, httptest.NewRequest("GET", "/?admin=owner-secret", nil))
@@ -203,8 +189,5 @@ func TestOpenCloudMode(t *testing.T) {
 	}
 	if ck == nil {
 		t.Fatal("admin key should unlock")
-	}
-	if c := post(ck); c != 200 {
-		t.Fatalf("owner reaction should work, got %d", c)
 	}
 }
