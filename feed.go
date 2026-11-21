@@ -417,7 +417,7 @@ func (f *Feed) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if f.stats != nil {
-		f.stats.recordView(ensureDeviceID(w, r))
+		f.stats.recordView(ensureDeviceID(w, r), clientIP(r), r.UserAgent())
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// Never let the browser serve a stale copy of the UI after an upgrade.

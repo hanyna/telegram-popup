@@ -547,8 +547,19 @@ const feedPage = `<!DOCTYPE html>
   /* stats panel */
   #statsback { position:fixed; inset:0; z-index:48; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
   #statsback.open { display:flex; }
-  .statscard { background:var(--panel); border:1px solid var(--line2); border-radius:18px; width:min(94vw,420px); max-height:88vh; overflow-y:auto; padding:20px; }
+  .statscard { background:var(--panel); border:1px solid var(--line2); border-radius:18px; width:min(94vw,520px); max-height:88vh; overflow-y:auto; padding:20px; }
   .statscard h2 { font-size:17px; margin:0 0 4px; }
+  /* who came in: one row per device */
+  .vishead { font-size:12px; color:var(--muted); margin:16px 0 6px; }
+  .vislist { border:1px solid var(--line); border-radius:12px; max-height:260px; overflow-y:auto; }
+  .visrow { display:grid; grid-template-columns:1fr auto; gap:2px 10px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .visrow:last-child { border-bottom:0; }
+  .visrow.me { background:rgba(74,147,196,0.10); }
+  .visrow .vua { font-weight:600; }
+  .visrow .vip { direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; color:var(--fg); user-select:all; text-align:left; }
+  .visrow .vwhen, .visrow .vcount { color:var(--muted); font-size:11.5px; }
+  .visrow .vcount { text-align:left; }
+  .visempty { padding:12px; font-size:12.5px; color:var(--muted); text-align:center; }
   .statscard .sub { font-size:12px; color:var(--muted); margin-bottom:16px; }
   .statgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
   .statbox { background:var(--bubble); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
@@ -1023,6 +1034,8 @@ const feedPage = `<!DOCTYPE html>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:6px">7 הימים האחרונים</div>
     <div class="statbars" id="st_bars"></div>
+    <div class="vishead" id="st_vishead">מכשירים שנכנסו (30 הימים האחרונים)</div>
+    <div class="vislist" id="st_vis"></div>
     <div class="statnote" id="st_note"></div>
     <button class="statclose" id="st_unlock" style="display:none;margin-top:10px;border-color:rgba(74,147,196,0.5);color:var(--accent)">📱 העתק קישור לפתיחה בטלפון</button>
     <button class="statclose" id="st_close">סגור</button>
@@ -3291,6 +3304,27 @@ const feedPage = `<!DOCTYPE html>
       var fill = document.createElement('div'); fill.className = 'fill'; fill.style.height = Math.round((x.v / max) * 100) + '%';
       var dl = document.createElement('div'); dl.className = 'dl'; dl.textContent = ['א','ב','ג','ד','ה','ו','ש'][day.getDay()];
       b.appendChild(bv); b.appendChild(fill); b.appendChild(dl); bars.appendChild(b);
+    });
+    // Who came in: device, address (IP), last visit, number of visits.
+    var vis = document.getElementById('st_vis'); vis.innerHTML = '';
+    var vl = d.visitors || [];
+    document.getElementById('st_vishead').textContent = 'מכשירים שנכנסו (30 הימים האחרונים) — ' + vl.length;
+    if (!vl.length) {
+      var em = document.createElement('div'); em.className = 'visempty'; em.textContent = 'עדיין אין כניסות רשומות';
+      vis.appendChild(em);
+    }
+    vl.forEach(function (v) {
+      var row = document.createElement('div'); row.className = 'visrow' + (v.me ? ' me' : '');
+      var ua = document.createElement('div'); ua.className = 'vua'; ua.textContent = (v.ua || 'לא ידוע') + (v.me ? ' (המכשיר הזה)' : '');
+      var ip = document.createElement('div'); ip.className = 'vip'; ip.textContent = v.ip || '—'; ip.title = 'כתובת IP';
+      var when = document.createElement('div'); when.className = 'vwhen';
+      var ld = new Date((v.last || 0) * 1000), fd = new Date((v.first || 0) * 1000);
+      when.textContent = 'כניסה אחרונה: ' + ld.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) + ' ' +
+        ld.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) +
+        ' · ראשונה: ' + fd.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+      var cnt = document.createElement('div'); cnt.className = 'vcount'; cnt.textContent = v.views === 1 ? 'כניסה אחת' : (v.views || 0) + ' כניסות';
+      row.appendChild(ua); row.appendChild(ip); row.appendChild(when); row.appendChild(cnt);
+      vis.appendChild(row);
     });
     var ub = document.getElementById('st_unlock');
     if (d.unlockPath) {
