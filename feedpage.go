@@ -266,6 +266,13 @@ const feedPage = `<!DOCTYPE html>
   }
   .iconbtn:hover { background:rgba(74,147,196,0.14); border-color:rgba(74,147,196,0.4); }
   .iconbtn.off { opacity:0.45; }
+  /* "תקנון" — a labelled button in the top bar */
+  .legalbtn { height:36px; padding:0 14px; border-radius:18px; flex:none; display:flex; align-items:center;
+    font-size:13px; color:var(--fg); text-decoration:none; white-space:nowrap;
+    background:rgba(255,255,255,0.05); border:1px solid var(--line);
+    transition:background 0.12s, border-color 0.12s; }
+  .legalbtn:hover { background:rgba(74,147,196,0.14); border-color:rgba(74,147,196,0.4); }
+  body.light .legalbtn { background:rgba(20,30,60,0.05); }
   #refreshbtn { font-size:19px; color:var(--accent); }
   #refreshbtn.spinning { animation:spin 0.8s linear infinite; pointer-events:none; opacity:0.7; }
 
@@ -872,6 +879,7 @@ const feedPage = `<!DOCTYPE html>
     .msgtext { font-size:var(--txt); line-height:1.5; }
     .headbtns .iconbtn { display:none !important; }
     .headbtns .iconbtn.keep, #morebtn { display:flex !important; }
+    .legalbtn { display:none; } /* phone: it is in the ⋯ menu */
     #searchbar { padding:8px 10px; }
     #installbtn { font-size:0; padding:8px 0; }
     #installbtn::before { content:'📲'; font-size:18px; }
@@ -929,6 +937,7 @@ const feedPage = `<!DOCTYPE html>
         <div class="iconbtn" id="tglpopups" data-icon="monitor" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות"></div>
         <div class="iconbtn" id="tglsound" data-icon="volume" role="button" tabindex="0" title="צליל התראה" aria-label="צליל התראה"></div>
         <div class="iconbtn keep" id="tglnotif" data-icon="bell" role="button" tabindex="0" style="display:none" title="התראות בדפדפן" aria-label="התראות בדפדפן"></div>
+        <a class="legalbtn" id="termsbtn" href="/terms" target="_blank" rel="noopener" title="תקנון ופרטיות">תקנון</a>
         <div class="iconbtn" id="morebtn" data-icon="more" role="button" tabindex="0" title="עוד" aria-label="עוד"></div>
       </div>
       <div id="moremenu" role="menu"></div>
