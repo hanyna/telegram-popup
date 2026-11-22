@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const version = "8.5"
+const version = "8.6"
 
 // out is where all runtime chatter goes. The Windows build has no console at
 // all, so everything lands in app.log next to the executable; on other
@@ -187,6 +187,7 @@ func main() {
 	reactPath := filepath.Join(dir, "reactions.json")
 	statsPath := filepath.Join(dir, "stats.json")
 	adminPath := filepath.Join(dir, "admin.json")
+	managePath := filepath.Join(dir, "adminstate.json")
 
 	// No console window exists on Windows — everything goes to app.log.
 	// The file comes FIRST in the MultiWriter: under -H windowsgui stdout
@@ -247,6 +248,30 @@ func main() {
 	}
 	tmpDir := filepath.Join(dir, "tmp")
 	_ = os.MkdirAll(tmpDir, 0o755)
+
+	// Cloud: bring back what the last run saved (the disk does not survive a
+	// restart there) BEFORE anything reads those files, then let the owner's
+	// own channel list replace the defaults.
+	var backup *persister
+	if cloudBind != "" {
+		backup = newPersister(os.Getenv("TGPOPUP_GH_TOKEN"), dir,
+			[]string{"adminstate.json", "reactions.json", "stats.json"}, logLine)
+		if backup != nil {
+			if rErr := backup.restore(); rErr != nil {
+				logf("גיבוי קבוע: השחזור נכשל: %v", rErr)
+			} else {
+				logf("גיבוי קבוע: פעיל")
+			}
+		} else {
+			logf("גיבוי קבוע: כבוי (אין TGPOPUP_GH_TOKEN) — לייקים, נתונים והגדרות מנהל יתאפסו בכל הפעלה מחדש")
+		}
+	}
+	manage := newManageStore(managePath)
+	if cloudBind != "" {
+		if own, ok := manage.channels(); ok {
+			cfg.Channels = own
+		}
+	}
 
 	channels := &channelSet{names: append([]string{}, cfg.Channels...)}
 	muted := &channelSet{names: append([]string{}, cfg.MutedChannels...)}
@@ -327,6 +352,9 @@ func main() {
 		feed.reacts = newReactStore(reactPath)
 		feed.stats = newStatsStore(statsPath)
 		feed.admin = newAdminStore(adminPath)
+		feed.manage = manage
+		feed.persist = backup
+		go backup.run()
 		statsHook = feed.stats.recordLogin
 		feed.FetchOlder = func(channel string, beforeID int) ([]Message, error) {
 			msgs, err := fetchChannelBefore(channel, beforeID)
@@ -339,7 +367,16 @@ func main() {
 		// The channel list is LOCKED by request: add/remove hooks are wired
 		// only when the config explicitly allows editing. Without them the
 		// APIs refuse and the page hides the +/✕ buttons.
-		if cfg.AllowChannelEdit {
+		// Online the hooks are always wired, but only the owner (admin) may
+		// use them; the owner's list is kept in the management state.
+		feed.AdminChannels = cloudBind != ""
+		ownList := func() {
+			if cloudBind != "" {
+				manage.setChannels(channels.list())
+				backup.kick()
+			}
+		}
+		if cfg.AllowChannelEdit || cloudBind != "" {
 			feed.AddChannel = func(raw string) (string, error) {
 				name := normalizeChannel(raw)
 				if name == "" {
@@ -357,6 +394,7 @@ func main() {
 				}
 				feed.SetChannelInfo(name, info)
 				persist()
+				ownList()
 				logLine("ערוץ נוסף מהדף: @%s", name)
 				poke()
 				return name, nil
@@ -369,6 +407,7 @@ func main() {
 					store.RemoveChannel(name)
 				}
 				persist()
+				ownList()
 				logLine("ערוץ הוסר מהדף: @%s", name)
 				return nil
 			}
@@ -729,7 +768,11 @@ func main() {
 			logf("נעצר — שומר ויוצא.")
 			if feed != nil {
 				feed.Shutdown(3 * time.Second)
+				if feed.stats != nil {
+					feed.stats.flushSync()
+				}
 			}
+			backup.stop() // last upload of likes / stats / owner settings
 			scanMu.Lock()
 			saveState(statePath, state)
 			scanMu.Unlock()

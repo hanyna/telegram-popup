@@ -549,6 +549,39 @@ const feedPage = `<!DOCTYPE html>
   #statsback.open { display:flex; }
   .statscard { background:var(--panel); border:1px solid var(--line2); border-radius:18px; width:min(94vw,520px); max-height:88vh; overflow-y:auto; padding:20px; }
   .statscard h2 { font-size:17px; margin:0 0 4px; }
+  /* management panel: tabs + small form rows */
+  .mtabs { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 14px; }
+  .mtab { padding:6px 12px; border-radius:99px; border:1px solid var(--line); font-size:13px; cursor:pointer; color:var(--muted); user-select:none; }
+  .mtab.on { background:rgba(74,147,196,0.18); border-color:rgba(74,147,196,0.5); color:var(--fg); }
+  .mpane { display:none; }
+  .mpane.on { display:block; }
+  .mrow { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .mrow input, .mpane textarea { flex:1; min-width:0; background:var(--bubble); color:var(--fg); border:1px solid var(--line2); border-radius:10px; padding:9px 11px; font:inherit; font-size:14px; }
+  .mpane textarea { width:100%; min-height:64px; resize:vertical; display:block; }
+  .mbtn { flex:none; padding:8px 14px; border-radius:10px; border:1px solid var(--line2); background:transparent; color:var(--fg); font:inherit; font-size:13px; cursor:pointer; }
+  .mbtn:hover { border-color:var(--accent); }
+  .mbtn.pri { background:rgba(74,147,196,0.22); border-color:rgba(74,147,196,0.55); }
+  .mbtn.warn { border-color:rgba(214,96,96,0.55); color:#e08a8a; }
+  body.light .mbtn.warn { color:#b23b3b; }
+  .mbtn.sm { padding:4px 10px; font-size:12px; }
+  .merr { color:#e08a8a; font-size:12.5px; margin-top:6px; min-height:16px; }
+  .mlabel { font-size:12px; color:var(--muted); margin:14px 0 6px; }
+  .mlabel:first-child { margin-top:0; }
+  .mline { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:13px; }
+  .mline:last-child { border-bottom:0; }
+  .mline .mt { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mline .ms { color:var(--muted); font-size:11.5px; }
+  .mbox { border:1px solid var(--line); border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.7; margin-bottom:10px; }
+  .mbox b { font-weight:600; }
+  .mbox a { color:var(--accent); }
+  .mbox ol { margin:6px 0 0; padding-inline-start:20px; }
+  .mok { color:#5fbf8a; } .mbad { color:#e08a8a; }
+  /* the owner's notice, for every viewer */
+  #sitebanner { display:none; align-items:flex-start; gap:10px; padding:9px 14px; font-size:13.5px; line-height:1.5;
+    background:rgba(214,170,74,0.16); border-bottom:1px solid rgba(214,170,74,0.4); color:var(--fg); }
+  #sitebanner.on { display:flex; }
+  #sitebannertext { flex:1; overflow-wrap:anywhere; }
+  #sitebannerx { flex:none; cursor:pointer; padding:0 4px; color:var(--muted); font-size:15px; }
   /* who came in: one row per device */
   .vishead { font-size:12px; color:var(--muted); margin:16px 0 6px; }
   .vislist { border:1px solid var(--line); border-radius:12px; max-height:260px; overflow-y:auto; }
@@ -942,7 +975,7 @@ const feedPage = `<!DOCTYPE html>
         <div class="iconbtn keep" id="searchbtn" data-icon="search" role="button" tabindex="0" title="חיפוש בארכיון" aria-label="חיפוש בארכיון"></div>
         <div class="iconbtn" id="filterbtn" data-icon="filter" role="button" tabindex="0" title="סינון לפי סוג" aria-label="סינון"></div>
         <div class="iconbtn keep" id="digestbtn" data-icon="list" role="button" tabindex="0" title="מה פספסתי / מה היה היום" aria-label="תקציר"></div>
-        <div class="iconbtn" id="statsbtn" data-icon="chart" role="button" tabindex="0" title="נתוני כניסות" aria-label="נתונים" style="display:none"></div>
+        <div class="iconbtn" id="statsbtn" data-icon="chart" role="button" tabindex="0" title="ניהול האתר ונתוני כניסות" aria-label="ניהול האתר" style="display:none"></div>
         <div class="iconbtn keep" id="refreshbtn" data-icon="refresh" role="button" tabindex="0" title="עדכן עכשיו" aria-label="עדכן עכשיו"></div>
         <div class="iconbtn" id="tglmute" data-icon="bell" role="button" tabindex="0" style="display:none"></div>
         <div class="iconbtn" id="tglpopups" data-icon="monitor" role="button" tabindex="0" title="חלוניות קופצות במחשב (כל הערוצים)" aria-label="חלוניות קופצות"></div>
@@ -972,6 +1005,10 @@ const feedPage = `<!DOCTYPE html>
       <span class="fchip" data-f="photo">תמונות</span>
       <span class="fchip" data-f="video">סרטונים</span>
       <span class="fchip" data-f="voice">קול</span>
+    </div>
+    <div id="sitebanner" role="status">
+      <span id="sitebannertext"></span>
+      <span id="sitebannerx" role="button" tabindex="0" title="סגור" aria-label="סגור הודעה">✕</span>
     </div>
     <div id="chat">
       <div id="topload"><span class="spin"></span>טוען הודעות ישנות…</div>
@@ -1024,20 +1061,76 @@ const feedPage = `<!DOCTYPE html>
 </div>
 <div id="statsback" role="dialog" aria-modal="true" aria-labelledby="stitle">
   <div class="statscard">
-    <h2 id="stitle">נתוני כניסות</h2>
-    <div class="sub" id="ssince"></div>
-    <div class="statgrid">
-      <div class="statbox live"><div class="n" id="st_active">—</div><div class="l">מחוברים כרגע</div></div>
-      <div class="statbox"><div class="n" id="st_today">—</div><div class="l">כניסות היום</div></div>
-      <div class="statbox"><div class="n" id="st_views">—</div><div class="l">סה״כ כניסות</div></div>
-      <div class="statbox"><div class="n" id="st_devices">—</div><div class="l">מכשירים שונים</div></div>
+    <h2 id="stitle">ניהול האתר</h2>
+    <div class="mtabs" role="tablist">
+      <span class="mtab on" data-tab="stats" role="tab" tabindex="0">נתונים</span>
+      <span class="mtab" data-tab="chans" role="tab" tabindex="0">ערוצים</span>
+      <span class="mtab" data-tab="msgs" role="tab" tabindex="0">הודעות</span>
+      <span class="mtab" data-tab="blocks" role="tab" tabindex="0">חסימות</span>
+      <span class="mtab" data-tab="sys" role="tab" tabindex="0">מערכת</span>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">7 הימים האחרונים</div>
-    <div class="statbars" id="st_bars"></div>
-    <div class="vishead" id="st_vishead">מכשירים שנכנסו (30 הימים האחרונים)</div>
-    <div class="vislist" id="st_vis"></div>
-    <div class="statnote" id="st_note"></div>
-    <button class="statclose" id="st_unlock" style="display:none;margin-top:10px;border-color:rgba(74,147,196,0.5);color:var(--accent)">📱 העתק קישור לפתיחה בטלפון</button>
+
+    <div class="mpane on" data-pane="stats">
+      <div class="sub" id="ssince"></div>
+      <div class="statgrid">
+        <div class="statbox live"><div class="n" id="st_active">—</div><div class="l">מחוברים כרגע</div></div>
+        <div class="statbox"><div class="n" id="st_today">—</div><div class="l">כניסות היום</div></div>
+        <div class="statbox"><div class="n" id="st_views">—</div><div class="l">סה״כ כניסות</div></div>
+        <div class="statbox"><div class="n" id="st_devices">—</div><div class="l">מכשירים שונים</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">7 הימים האחרונים</div>
+      <div class="statbars" id="st_bars"></div>
+      <div class="vishead" id="st_vishead">מכשירים שנכנסו (30 הימים האחרונים)</div>
+      <div class="vislist" id="st_vis"></div>
+      <div class="statnote" id="st_note"></div>
+      <button class="statclose" id="st_unlock" style="display:none;margin-top:10px;border-color:rgba(74,147,196,0.5);color:var(--accent)">📱 העתק קישור לפתיחה בטלפון</button>
+    </div>
+
+    <div class="mpane" data-pane="chans">
+      <div class="mlabel">הערוצים באתר</div>
+      <div class="vislist" id="mg_chans"></div>
+      <div class="mrow" id="mg_chan_form">
+        <input id="mg_chan_in" dir="ltr" placeholder="שם ערוץ או קישור t.me" aria-label="ערוץ להוספה">
+        <button class="mbtn pri" id="mg_chan_add">הוסף ערוץ</button>
+      </div>
+      <div class="merr" id="mg_chan_err"></div>
+      <div class="statnote">רק ערוצים ציבוריים. אחרי הוספה או הסרה הדף נטען מחדש.</div>
+    </div>
+
+    <div class="mpane" data-pane="msgs">
+      <div class="mlabel">הודעת מנהל — מוצגת בראש האתר לכל הגולשים</div>
+      <textarea id="mg_banner" maxlength="300" aria-label="הודעת מנהל"></textarea>
+      <div class="mrow">
+        <button class="mbtn pri" id="mg_banner_save">פרסם</button>
+        <button class="mbtn" id="mg_banner_clear">הסר את ההודעה</button>
+      </div>
+      <div class="mlabel">הודעות שהסתרת</div>
+      <div class="vislist" id="mg_hidden"></div>
+      <div class="statnote">להסתרה: לחיצה ימנית (או לחיצה ארוכה בטלפון) על הודעה ← "הסתר לכולם".</div>
+      <div class="mlabel">לייקים</div>
+      <div class="mrow" style="margin-top:0">
+        <span id="mg_likes" style="flex:1;font-size:13px"></span>
+        <button class="mbtn warn" id="mg_likes_clear">אפס את כל הלייקים</button>
+      </div>
+    </div>
+
+    <div class="mpane" data-pane="blocks">
+      <div class="mlabel">כתובות חסומות</div>
+      <div class="vislist" id="mg_blocked"></div>
+      <div class="mrow">
+        <input id="mg_block_in" dir="ltr" placeholder="כתובת IP, למשל 82.80.1.2" aria-label="כתובת IP לחסימה">
+        <button class="mbtn warn" id="mg_block_add">חסום</button>
+      </div>
+      <div class="statnote">אפשר לחסום גם מתוך רשימת המכשירים בלשונית "נתונים". שים לב: כתובת IP משותפת לפעמים להרבה אנשים (נטפרי, רשת סלולרית, משרד) — חסימה שלה חוסמת את כולם.</div>
+    </div>
+
+    <div class="mpane" data-pane="sys">
+      <div class="mlabel">סרטונים ארוכים</div>
+      <div class="mbox" id="mg_bridge"></div>
+      <div class="mlabel">גיבוי קבוע</div>
+      <div class="mbox" id="mg_persist"></div>
+    </div>
+
     <button class="statclose" id="st_close">סגור</button>
   </div>
 </div>
@@ -3006,6 +3099,8 @@ const feedPage = `<!DOCTYPE html>
     setSound = d.sound !== false;
     if (!d.cloud && (d.theme === 'light' || d.theme === 'dark')) { theme = d.theme; applyTheme(); }
     isAdmin = !!d.admin;
+    showBanner(d.banner || '', d.bannerAt || 0);
+    (d.hidden || []).forEach(removeMessage);
     if (d.bigvideo && !bigEnabled) { bigEnabled = true; upgradeTooBig(msgs); }
     paintToggles();
     applyCaps(!!d.cloud);
@@ -3146,6 +3241,15 @@ const feedPage = `<!DOCTYPE html>
     var link = 'https://t.me/' + (meta.channel || '') + '/' + (meta.id || '');
     it('😊', (myReacts[key] ? 'שנה / הסר לייק' : 'הוסף לייק / תגובה'), function () { openReactPick(node, key, node); });
     it('📋', 'העתק טקסט', function () { copyText(text, 'הטקסט הועתק'); });
+    if (isAdmin && key) {
+      it('🚫', 'הסתר לכולם (מנהל)', function () {
+        if (!confirm('להסתיר את ההודעה הזו מכל הגולשים?')) return;
+        mgPost({ action: 'hide', key: key }, 'ההודעה הוסתרה לכולם');
+      });
+      if (reactCounts[key] && Object.keys(reactCounts[key]).length) {
+        it('🧹', 'אפס לייקים להודעה (מנהל)', function () { mgPost({ action: 'likes_clear', key: key }, 'הלייקים אופסו'); });
+      }
+    }
     it('🔗', 'העתק קישור לפוסט', function () { copyText(link, 'הקישור הועתק'); });
     if (navigator.share) it('📤', 'שתף…', function () { navigator.share({ title: (ch && ch.title) || '', text: text, url: link }).catch(function () {}); });
     if (ch) {
@@ -3285,8 +3389,10 @@ const feedPage = `<!DOCTYPE html>
 
   // ----- stats panel --------------------------------------------------------
   var statsTimer = null;
+  var lastStats = null;
   function renderStats(d) {
     if (!d || d.disabled) { toast('נתונים לא זמינים בגרסה הזו'); return false; }
+    lastStats = d;
     document.getElementById('st_active').textContent = d.activeNow;
     document.getElementById('st_today').textContent = d.today;
     document.getElementById('st_views').textContent = d.views;
@@ -3324,6 +3430,18 @@ const feedPage = `<!DOCTYPE html>
         ' · ראשונה: ' + fd.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
       var cnt = document.createElement('div'); cnt.className = 'vcount'; cnt.textContent = v.views === 1 ? 'כניסה אחת' : (v.views || 0) + ' כניסות';
       row.appendChild(ua); row.appendChild(ip); row.appendChild(when); row.appendChild(cnt);
+      if (!v.me && v.ip && isCloud) {
+        var isB = mg && (mg.blocked || []).some(function (b) { return b.ip === v.ip; });
+        var bb = document.createElement('button'); bb.className = 'mbtn sm' + (isB ? '' : ' warn');
+        bb.textContent = isB ? 'בטל חסימה' : 'חסום';
+        bb.style.gridColumn = '1 / -1'; bb.style.justifySelf = 'start'; bb.style.marginTop = '4px';
+        bb.onclick = function () {
+          if (isB) { mgPost({ action: 'unblock', ip: v.ip }, 'החסימה בוטלה').then(function () { renderStats(lastStats); }); return; }
+          if (!confirm('לחסום את הכתובת ' + v.ip + '?\nכל מי שגולש מהכתובת הזו לא יוכל להיכנס לאתר.')) return;
+          mgPost({ action: 'block', ip: v.ip }, 'הכתובת נחסמה').then(function () { renderStats(lastStats); });
+        };
+        row.appendChild(bb);
+      }
       vis.appendChild(row);
     });
     var ub = document.getElementById('st_unlock');
@@ -3339,7 +3457,165 @@ const feedPage = `<!DOCTYPE html>
       : 'הנתונים נספרים בתוכנה, ללא כל שירות מעקב חיצוני.';
     return true;
   }
+  // ----- management panel (owner only) ----------------------------------------
+  var mg = null; // last /api/admin answer
+  function fmtWhen(ts) {
+    if (!ts) return '';
+    var d = new Date(ts * 1000);
+    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) + ' ' +
+      d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  }
+  function mgLoad() {
+    return fetch('/api/admin', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && !d.error) { mg = d; mgRender(); if (lastStats) renderStats(lastStats); }
+    }).catch(function () {});
+  }
+  function mgPost(body, okMsg) {
+    return fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.error) { toast((d && d.error) || 'הפעולה נכשלה'); return false; }
+        mg = d; mgRender(); if (okMsg) toast(okMsg); return true;
+      })
+      .catch(function () { toast('שגיאת תקשורת'); return false; });
+  }
+  function mgLine(box, main, sub, btnText, btnClass, fn) {
+    var row = document.createElement('div'); row.className = 'mline';
+    var t = document.createElement('div'); t.className = 'mt';
+    t.textContent = main;
+    if (sub) { var sm = document.createElement('div'); sm.className = 'ms'; sm.textContent = sub; t.appendChild(sm); }
+    row.appendChild(t);
+    if (btnText) {
+      var b = document.createElement('button'); b.className = 'mbtn sm ' + (btnClass || ''); b.textContent = btnText; b.onclick = fn;
+      row.appendChild(b);
+    }
+    box.appendChild(row);
+  }
+  function mgEmpty(box, text) { var e = document.createElement('div'); e.className = 'visempty'; e.textContent = text; box.appendChild(e); }
+  function mgRender() {
+    if (!mg) return;
+    // channels
+    var cb = document.getElementById('mg_chans'); cb.innerHTML = '';
+    (mg.channels || []).forEach(function (c) {
+      mgLine(cb, c.title, '@' + c.name, mg.channelsEdit ? 'הסר' : '', 'warn', function () {
+        if (!confirm('להסיר את הערוץ ' + c.title + ' מהאתר?')) return;
+        fetch('/api/channels?name=' + encodeURIComponent(c.name), { method: 'DELETE' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d.ok) location.reload(); else toast(d.error || 'ההסרה נכשלה'); })
+          .catch(function () { toast('שגיאת תקשורת'); });
+      });
+    });
+    if (!(mg.channels || []).length) mgEmpty(cb, 'אין ערוצים');
+    document.getElementById('mg_chan_form').style.display = mg.channelsEdit ? 'flex' : 'none';
+    // notice
+    var ta = document.getElementById('mg_banner');
+    if (document.activeElement !== ta) ta.value = (mg.banner && mg.banner.text) || '';
+    // hidden posts
+    var hb = document.getElementById('mg_hidden'); hb.innerHTML = '';
+    (mg.hidden || []).forEach(function (h) {
+      mgLine(hb, h.preview || '(ללא טקסט)', '@' + h.channel + ' · הוסתרה ' + fmtWhen(h.at), 'החזר', '', function () {
+        mgPost({ action: 'unhide', key: h.key }, 'ההודעה תחזור לאתר');
+      });
+    });
+    if (!(mg.hidden || []).length) mgEmpty(hb, 'לא הסתרת אף הודעה');
+    document.getElementById('mg_likes').textContent = 'סה״כ לייקים באתר: ' + (mg.likes || 0);
+    // blocked
+    var bb = document.getElementById('mg_blocked'); bb.innerHTML = '';
+    (mg.blocked || []).forEach(function (b) {
+      mgLine(bb, b.ip, 'נחסמה ' + fmtWhen(b.at), 'בטל חסימה', '', function () { mgPost({ action: 'unblock', ip: b.ip }, 'החסימה בוטלה'); });
+    });
+    if (!(mg.blocked || []).length) mgEmpty(bb, 'אין כתובות חסומות');
+    // long videos
+    var br = mg.bridge || {}, bx = document.getElementById('mg_bridge'); bx.innerHTML = '';
+    function line(box, html) { var d = document.createElement('div'); d.innerHTML = html; box.appendChild(d); }
+    function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    if (!br.on) line(bx, '<span class="mbad">כבוי</span> — סרטונים ארוכים נפתחים רק בטלגרם.');
+    else {
+      line(bx, '<span class="mok">פעיל</span> · דרך ' + esc((br.base || '').replace(/^https?:\/\//, '')));
+      var bl = br.blocked || [];
+      if (!bl.length && !br.globalUntil) line(bx, 'אין ערוצים בהמתנה — הכול זמין.');
+      bl.forEach(function (x) { line(bx, '<span class="mbad">@' + esc(x.channel) + '</span> — בהמתנה עד ' + esc(fmtWhen(x.until))); });
+      if (br.globalUntil) line(bx, '<span class="mbad">השירות ביקש הפסקה קצרה</span> — עד ' + esc(fmtWhen(br.globalUntil)));
+      line(bx, 'שמורים בשרת: ' + (br.cached || 0) + ' סרטונים (' + Math.round((br.cachedBytes || 0) / 1048576) + ' מתוך ' + Math.round((br.maxBytes || 0) / 1048576) + ' MB)');
+    }
+    // permanent backup
+    var ps = mg.persist || {}, px = document.getElementById('mg_persist'); px.innerHTML = '';
+    if (!mg.cloud) line(px, 'במחשב הכול נשמר בתיקיית התוכנה — אין צורך בגיבוי.');
+    else if (ps.on && ps.ok) line(px, '<span class="mok">פעיל</span>' + (ps.lastSaved ? ' · נשמר לאחרונה ' + esc(fmtWhen(ps.lastSaved)) : ' · יישמר בדקות הקרובות') +
+      '<br>הלייקים, נתוני הכניסות וההגדרות שלך נשמרים גם כשהשרת נרדם או מתעדכן.');
+    else if (ps.on) line(px, '<span class="mbad">שגיאה</span> — ' + esc(ps.error || '') + '<br>בדוק את הטוקן במשתנה TGPOPUP_GH_TOKEN ב-Render.');
+    else line(px, '<span class="mbad">כבוי</span> — בלי גיבוי, הלייקים, נתוני הכניסות וכל מה שקבעת כאן <b>מתאפסים בכל פעם שהשרת נרדם או מתעדכן</b>.' +
+      '<ol><li>פתח את <a href="https://github.com/settings/tokens/new?scopes=gist&description=mivzakim-backup" target="_blank" rel="noopener">דף יצירת הטוקן ב-GitHub</a> (ההרשאה gist כבר מסומנת).</li>' +
+      '<li>ב-Expiration בחר <b>No expiration</b>, ולחץ למטה <b>Generate token</b>.</li>' +
+      '<li>העתק את הקוד שמתחיל ב-ghp_.</li>' +
+      '<li>ב-Render הוסף משתנה בשם <b>TGPOPUP_GH_TOKEN</b> עם הקוד, ושמור.</li></ol>');
+  }
+  document.querySelectorAll('.mtab').forEach(function (t) {
+    function pick() {
+      var name = t.getAttribute('data-tab');
+      document.querySelectorAll('.mtab').forEach(function (x) { x.classList.toggle('on', x === t); });
+      document.querySelectorAll('.mpane').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-pane') === name); });
+    }
+    t.onclick = pick;
+    t.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); } };
+  });
+  document.getElementById('mg_chan_add').onclick = function () {
+    var inp = document.getElementById('mg_chan_in'), err = document.getElementById('mg_chan_err'), btn = this;
+    var v = inp.value.trim(); if (!v) return;
+    btn.disabled = true; btn.textContent = 'בודק…'; err.textContent = '';
+    fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: v }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) { location.reload(); return; }
+        err.textContent = d.error || 'ההוספה נכשלה'; btn.disabled = false; btn.textContent = 'הוסף ערוץ';
+      })
+      .catch(function () { err.textContent = 'שגיאת תקשורת'; btn.disabled = false; btn.textContent = 'הוסף ערוץ'; });
+  };
+  document.getElementById('mg_chan_in').onkeydown = function (ev) { if (ev.key === 'Enter') document.getElementById('mg_chan_add').click(); };
+  document.getElementById('mg_banner_save').onclick = function () {
+    var v = document.getElementById('mg_banner').value.trim();
+    if (!v) { toast('כתוב הודעה, או לחץ "הסר את ההודעה"'); return; }
+    mgPost({ action: 'banner', text: v }, 'ההודעה פורסמה לכל הגולשים');
+  };
+  document.getElementById('mg_banner_clear').onclick = function () {
+    document.getElementById('mg_banner').value = '';
+    mgPost({ action: 'banner', text: '' }, 'ההודעה הוסרה');
+  };
+  document.getElementById('mg_likes_clear').onclick = function () {
+    if (!confirm('לאפס את כל הלייקים באתר? אי אפשר לבטל.')) return;
+    mgPost({ action: 'likes_clear', key: '' }, 'כל הלייקים אופסו');
+  };
+  document.getElementById('mg_block_add').onclick = function () {
+    var inp = document.getElementById('mg_block_in'), v = inp.value.trim(); if (!v) return;
+    if (!confirm('לחסום את הכתובת ' + v + '?')) return;
+    mgPost({ action: 'block', ip: v }, 'הכתובת נחסמה').then(function (ok) { if (ok) inp.value = ''; });
+  };
+
+  // ----- for every viewer: the owner's notice and hidden posts -----------------
+  function showBanner(text, at) {
+    var bar = document.getElementById('sitebanner'), seen = '';
+    try { seen = localStorage.getItem('tgpopup-banner-seen') || ''; } catch (e) {}
+    if (!text || seen === String(at)) { bar.classList.remove('on'); return; }
+    document.getElementById('sitebannertext').textContent = text;
+    bar.setAttribute('data-at', String(at));
+    bar.classList.add('on');
+  }
+  function closeBanner() {
+    var bar = document.getElementById('sitebanner');
+    try { localStorage.setItem('tgpopup-banner-seen', bar.getAttribute('data-at') || ''); } catch (e) {}
+    bar.classList.remove('on');
+  }
+  document.getElementById('sitebannerx').onclick = closeBanner;
+  document.getElementById('sitebannerx').onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); closeBanner(); } };
+  function removeMessage(key) {
+    var n = document.getElementById('m' + key); if (n) n.remove();
+    var sr = document.getElementById('sr_' + key); if (sr) sr.remove();
+    delete itemMeta[key];
+    if (snapItems[key]) { delete snapItems[key]; if (!snapTimer) snapTimer = setTimeout(saveSnapshot, 300); }
+  }
+
   function openStats() {
+    mgLoad();
     fetch('/api/stats', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       if (renderStats(d) === false) return;
       document.getElementById('statsback').classList.add('open');
@@ -3439,7 +3715,7 @@ const feedPage = `<!DOCTYPE html>
       m.appendChild(d);
     }
     item('📋', 'מה פספסתי / מה היה היום', function () { openDigest(); });
-    if (isAdmin) item('📊', 'נתוני כניסות', function () { openStats(); });
+    if (isAdmin) item('📊', 'ניהול האתר ונתונים', function () { openStats(); });
     item('♿', 'נגישות', function () { openA11y(); });
     item('📄', 'תקנון ופרטיות', function () { window.open('/terms', '_blank', 'noopener'); });
     item('📄', 'הצהרת נגישות', function () { window.open('/accessibility', '_blank', 'noopener'); });
@@ -3652,6 +3928,10 @@ const feedPage = `<!DOCTYPE html>
         }
         return;
       }
+      if (d.type === 'hide') { removeMessage(d.key); return; }
+      if (d.type === 'unhide') { return; } // the post comes back with the next scan
+      if (d.type === 'banner') { showBanner(d.text || '', d.at || 0); return; }
+      if (d.type === 'reacts') { loadReactsFromServer(); return; }
       if (d.type === 'goto') {
         gotoMessage(d.channel, d.id);
         return;

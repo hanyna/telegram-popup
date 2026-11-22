@@ -231,6 +231,19 @@ func (s *statsStore) flushLocked() {
 	go func() { _ = writeFileAtomic(path, data, 0o644) }()
 }
 
+// flushSync writes the stats file right now (before a final backup).
+func (s *statsStore) flushSync() {
+	s.mu.Lock()
+	data, _ := json.Marshal(s)
+	s.dirty = false
+	s.lastFlush = time.Now()
+	path := s.path
+	s.mu.Unlock()
+	if path != "" {
+		_ = writeFileAtomic(path, data, 0o644)
+	}
+}
+
 // snapshot returns the numbers for the stats panel. activeNow is passed in
 // (the feed knows its open streams).
 func (s *statsStore) snapshot(activeNow int) map[string]any {

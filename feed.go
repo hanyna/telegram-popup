@@ -86,14 +86,19 @@ type Feed struct {
 	BigVideo func(channel string, id int) (string, error)
 	// bridge plays "Media is too big" videos without any account, through a
 	// public Telegram bridge (see bridge.go). nil = off.
-	bridge       *bridgeStore
-	HasTGAccount func() bool
-	Search       func(query, channel string, limit int) []Message
-	ArchiveCount func() int
-	GetAutostart func() bool
-	SetAutostart func(on bool) error
-	GetTheme     func() string
-	SetTheme     func(theme string)
+	bridge *bridgeStore
+	// The owner's management tools (manage.go) and the permanent backup of
+	// what they set (persist.go). AdminChannels: channel edits need admin.
+	manage        *manageStore
+	persist       *persister
+	AdminChannels bool
+	HasTGAccount  func() bool
+	Search        func(query, channel string, limit int) []Message
+	ArchiveCount  func() int
+	GetAutostart  func() bool
+	SetAutostart  func(on bool) error
+	GetTheme      func() string
+	SetTheme      func(theme string)
 	// Self-update hooks (desktop only): check the repo for a newer version,
 	// and download+apply it. Nil in the cloud (Render updates itself).
 	CheckUpdate func() (latest string, err error)
@@ -262,7 +267,7 @@ func (f *Feed) Add(msgs []Message) {
 			continue // service posts with no content just add noise
 		}
 		k := itemKey(m)
-		if f.keys[k] {
+		if f.keys[k] || f.manage.isHidden(k) {
 			continue
 		}
 		f.keys[k] = true
@@ -305,7 +310,7 @@ func (f *Feed) AddOlder(msgs []Message) (added, minID int) {
 			continue
 		}
 		k := itemKey(m)
-		if f.keys[k] {
+		if f.keys[k] || f.manage.isHidden(k) {
 			continue
 		}
 		f.keys[k] = true
@@ -362,6 +367,7 @@ func (f *Feed) Start(port int) (string, error) {
 	mux.HandleFunc("/api/refresh", f.handleRefresh)
 	mux.HandleFunc("/api/reactions", f.handleReactions)
 	mux.HandleFunc("/api/stats", f.handleStats)
+	mux.HandleFunc("/api/admin", f.handleManage)
 	mux.HandleFunc("/terms", f.handleTerms)
 	mux.HandleFunc("/accessibility", f.handleAccessibility)
 	mux.HandleFunc("/api/video", f.handleVideo)
@@ -386,7 +392,7 @@ func (f *Feed) Start(port int) (string, error) {
 	// Order, outside-in: browser headers → CSRF/rebinding guard → access key
 	// (cloud) → the mux. The guard sits before the key so a hostile page
 	// cannot even reach the login limiter from a foreign origin.
-	handler := securityHeaders(guardRequests(withAccessKey(mux, f.AccessKey), f.BindAddr != ""))
+	handler := securityHeaders(guardRequests(f.blockGuard(withAccessKey(mux, f.AccessKey)), f.BindAddr != ""))
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 15 * time.Second, // slow-loris protection in the cloud
@@ -488,6 +494,7 @@ func (f *Feed) handleOlder(w http.ResponseWriter, r *http.Request) {
 	for _, m := range older {
 		items = append(items, toItem(m))
 	}
+	items = f.dropHidden(items)
 	_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
 }
 
@@ -533,11 +540,11 @@ func (f *Feed) handleChannels(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"channels": entries,
 			// locked=true → the page hides "+ הוסף ערוץ" and the ✕ buttons.
-			"locked": f.AddChannel == nil && f.RemoveChannel == nil,
+			"locked": !f.canEditChannels(r), // online: only the owner edits
 		})
 
 	case http.MethodPost:
-		if f.AddChannel == nil {
+		if f.AddChannel == nil || !f.canEditChannels(r) {
 			http.Error(w, `{"error":"unsupported"}`, http.StatusNotImplemented)
 			return
 		}
@@ -556,7 +563,7 @@ func (f *Feed) handleChannels(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "channel": name})
 
 	case http.MethodDelete:
-		if f.RemoveChannel == nil {
+		if f.RemoveChannel == nil || !f.canEditChannels(r) {
 			http.Error(w, `{"error":"unsupported"}`, http.StatusNotImplemented)
 			return
 		}
@@ -870,6 +877,7 @@ func (f *Feed) handleSearch(w http.ResponseWriter, r *http.Request) {
 	for _, m := range msgs {
 		items = append(items, toItem(m))
 	}
+	items = f.dropHidden(items)
 	total := 0
 	if f.ArchiveCount != nil {
 		total = f.ArchiveCount()
@@ -1240,6 +1248,7 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if f.GetTheme != nil {
 			theme = f.GetTheme()
 		}
+		bannerText, bannerAt := f.manage.banner()
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"popups": popups, "sound": sound, "theme": theme,
 			// Capability flags: the page hides what makes no sense here.
@@ -1251,6 +1260,11 @@ func (f *Feed) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"admin":     f.isAdmin(r),
 			"canReact":  f.canReact(r),
 			"bigvideo":  f.bridge != nil,
+			// For every viewer: the owner's notice, and which posts the
+			// owner hid (so a copy cached on the device disappears too).
+			"banner":   bannerText,
+			"bannerAt": bannerAt,
+			"hidden":   f.manage.hiddenKeys(),
 		})
 
 	case http.MethodPost:
